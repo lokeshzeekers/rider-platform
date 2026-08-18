@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RideMesh — Super Admin</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">👑 Super Admin</div>
+    <button class="nav-item active" data-ssection="summary">📊 Platform overview</button>
+    <button class="nav-item" data-ssection="organizations">🏢 Organizations</button>
+    <button class="nav-item" data-ssection="users">👥 All users</button>
+    <button class="nav-item" data-ssection="plans">💳 Plans (dormant)</button>
+    <button class="nav-item" data-ssection="audit">📜 Audit log</button>
+    <div style="flex:1"></div>
+    <div class="route-divider"></div>
+    <button class="nav-item" id="sa-logout">🚪 Log out</button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar"><h1 id="ssection-heading">Platform overview</h1></div>
+
+    <!-- SUMMARY -->
+    <section id="ssection-summary" class="section">
+      <div class="grid-3">
+        <div class="card"><div class="stat" id="p-total-orgs">0</div><div class="stat-label">Organizations</div></div>
+        <div class="card"><div class="stat" id="p-active-orgs">0</div><div class="stat-label">Active orgs</div></div>
+        <div class="card"><div class="stat" id="p-disabled-orgs">0</div><div class="stat-label">Disabled orgs</div></div>
+      </div>
+      <div class="grid-3" style="margin-top:16px;">
+        <div class="card"><div class="stat" id="p-total-users">0</div><div class="stat-label">Total riders</div></div>
+        <div class="card"><div class="stat" id="p-live-riders">0</div><div class="stat-label">Live right now</div></div>
+        <div class="card"><div class="stat" id="p-active-trips">0</div><div class="stat-label">Active trips</div></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">Plan distribution</div>
+        <div id="plan-distribution"><div class="empty-state">Loading…</div></div>
+        <p class="row-sub" style="margin-top:10px;">
+          Monetization is currently disabled — every organization is on the unrestricted launch plan. This view will populate once billing is activated.
+        </p>
+      </div>
+    </section>
+
+    <!-- ORGANIZATIONS -->
+    <section id="ssection-organizations" class="section hidden">
+      <div class="card">
+        <div class="section-title">Create a new organization</div>
+        <form id="org-create-form">
+          <div class="grid-2">
+            <div><label>Organization name</label><input id="new-org-name" required placeholder="e.g. Coimbatore Riders" /></div>
+            <div><label>Org code (login slug)</label><input id="new-org-slug" required placeholder="e.g. coimbatore-riders" pattern="[a-z0-9-]{3,40}" /></div>
+          </div>
+          <button class="btn primary" type="submit">Create organization</button>
+        </form>
+      </div>
+      <div class="card">
+        <input id="org-search" placeholder="Search organizations by name or code…" />
+      </div>
+      <div id="organizations-list"></div>
+
+      <!-- Org detail panel -->
+      <div id="org-detail" class="hidden" style="margin-top:16px;">
+        <div class="route-divider accent"></div>
+        <div class="card">
+          <div class="topbar" style="margin-bottom:6px;">
+            <h3 id="org-detail-name">Organization</h3>
+            <span class="tag" id="org-detail-status">active</span>
+          </div>
+          <div class="row-sub mono" id="org-detail-code"></div>
+          <div class="grid-3" style="margin-top:12px;">
+            <div><div class="stat" id="org-detail-users" style="font-size:22px;">0</div><div class="stat-label">Users</div></div>
+            <div><div class="stat" id="org-detail-trips" style="font-size:22px;">0</div><div class="stat-label">Trips</div></div>
+            <div><div class="stat" id="org-detail-live" style="font-size:22px;">0</div><div class="stat-label">Live now</div></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+            <button class="btn small danger" id="org-detail-toggle">Deactivate organization</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">Organization admins</div>
+          <div id="org-detail-admins"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Create a new organization admin</div>
+          <div class="grid-2">
+            <div><label>Username</label><input id="new-admin-username" /></div>
+            <div><label>Name</label><input id="new-admin-name" /></div>
+          </div>
+          <div class="grid-2">
+            <div><label>Email</label><input id="new-admin-email" type="email" /></div>
+            <div><label>Phone</label><input id="new-admin-phone" /></div>
+          </div>
+          <label>Temporary password</label><input id="new-admin-password" type="password" minlength="8" />
+          <button class="btn primary small" id="create-admin-btn">Create admin</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- USERS -->
+    <section id="ssection-users" class="section hidden">
+      <div class="card">
+        <input id="platform-user-search" placeholder="Search every rider on the platform, across all organizations…" />
+      </div>
+      <div id="platform-users-list"></div>
+    </section>
+
+    <!-- PLANS -->
+    <section id="ssection-plans" class="section hidden">
+      <div class="card">
+        <p class="row-sub" style="margin-top:0;">
+          Plans are configurable now so the workflow exists, but enforcement is switched off
+          (<span class="mono">MONETIZATION_ENABLED=false</span>). Every org and user has full access regardless of plan.
+        </p>
+      </div>
+      <div id="plans-list"></div>
+    </section>
+
+    <!-- AUDIT -->
+    <section id="ssection-audit" class="section hidden">
+      <div id="audit-list"></div>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/super-admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Backend dependencies
+backend/node_modules/
+
+# Environment/secrets
+backend/.env
+.env
+
+# Logs
+*.log
+backend/logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Python cache
+__pycache__/

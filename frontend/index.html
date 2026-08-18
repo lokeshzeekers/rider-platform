@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RideMesh — Ride together, live</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card card">
+    <div class="auth-logo display">📍 RideMesh</div>
+    <div class="auth-tagline">See your riders. Track every trip. Live.</div>
+
+    <div class="auth-tabs">
+      <button id="tab-login" class="active">Log in</button>
+      <button id="tab-register">Create account</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <form id="login-form">
+      <label for="login-orgcode">Organization code</label>
+      <input id="login-orgcode" required placeholder="e.g. coimbatore-riders" autocomplete="organization" />
+      <label for="login-identifier">Username or email</label>
+      <input id="login-identifier" required autocomplete="username" />
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" required autocomplete="current-password" />
+      <div id="login-error" class="error-msg hidden"></div>
+      <button class="btn primary" type="submit" style="width:100%">Log in</button>
+      <div style="text-align:center;margin-top:14px;display:flex;justify-content:space-between;">
+        <a href="#" id="forgot-link" style="font-size:12px;">Forgot username or password?</a>
+        <a href="#" id="super-admin-link" style="font-size:12px;">Super Admin</a>
+      </div>
+    </form>
+
+    <!-- SUPER ADMIN LOGIN -->
+    <form id="super-admin-form" class="hidden">
+      <div class="section-title">Platform Super Admin</div>
+      <label for="sa-identifier">Username or email</label>
+      <input id="sa-identifier" autocomplete="username" />
+      <label for="sa-password">Password</label>
+      <input id="sa-password" type="password" autocomplete="current-password" />
+      <div id="sa-error" class="error-msg hidden"></div>
+      <button class="btn primary" type="submit" style="width:100%">Log in as Super Admin</button>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="#" id="back-from-sa" style="font-size:12px;">Back to rider log in</a>
+      </div>
+    </form>
+
+    <!-- REGISTER FORM -->
+    <form id="register-form" class="hidden">
+      <label for="reg-orgcode">Organization code</label>
+      <input id="reg-orgcode" required placeholder="Given to you by your organization admin" />
+      <label for="reg-name">Full name</label>
+      <input id="reg-name" required />
+      <label for="reg-username">Username</label>
+      <input id="reg-username" required pattern="[a-zA-Z0-9_.]{3,20}" title="3-20 chars: letters, numbers, underscore, dot" />
+      <label for="reg-email">Email</label>
+      <input id="reg-email" type="email" required />
+      <label for="reg-phone">Phone number</label>
+      <input id="reg-phone" required placeholder="Stays private until you're friends" />
+      <label for="reg-password">Password</label>
+      <input id="reg-password" type="password" required minlength="8" autocomplete="new-password" />
+      <div id="register-error" class="error-msg hidden"></div>
+      <button class="btn primary" type="submit" style="width:100%">Create account</button>
+    </form>
+
+    <!-- RECOVERY FORM -->
+    <div id="recovery-panel" class="hidden">
+      <label for="rec-orgcode">Organization code</label>
+      <input id="rec-orgcode" placeholder="e.g. coimbatore-riders" />
+      <div class="tabs-inline">
+        <button id="rec-tab-user" class="active">Forgot username</button>
+        <button id="rec-tab-pass">Forgot password</button>
+      </div>
+      <div id="rec-user-panel">
+        <label for="rec-email">Email or phone on file</label>
+        <input id="rec-email" placeholder="you@example.com" />
+        <button class="btn primary" id="rec-user-submit" style="width:100%">Find my username</button>
+        <div id="rec-user-result" class="success-msg hidden"></div>
+      </div>
+      <div id="rec-pass-panel" class="hidden">
+        <label for="rec-identifier">Username or email</label>
+        <input id="rec-identifier" />
+        <button class="btn primary" id="rec-pass-submit" style="width:100%">Send reset instructions</button>
+        <div id="rec-pass-result" class="success-msg hidden"></div>
+        <p style="font-size:11px;color:var(--text-dim);margin-top:8px;">
+          Your organization admin is also notified and can reset your password directly if you can't access email.
+        </p>
+      </div>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="#" id="back-to-login" style="font-size:12px;">Back to log in</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>

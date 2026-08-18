@@ -1,0 +1,30 @@
+{
+  "name": "ridemesh-backend",
+  "version": "2.0.0",
+  "description": "RideMesh - multi-tenant real-time rider tracking and social riding platform",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "migrate": "node db/migrate.js",
+    "create-super-admin": "node scripts/create-super-admin.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.7.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "uuid": "^9.0.1",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.4.0",
+    "express-validator": "^7.2.0",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.33.5",
+    "pino": "^9.4.0",
+    "pino-http": "^10.3.0"
+  }
+}

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RideMesh — Dashboard</title>
+<link rel="stylesheet" href="css/styles.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">📍 RideMesh <span class="pulse-dot offline" id="my-status-dot"></span></div>
+    <div class="row-sub" id="org-badge" style="padding:0 10px 10px;"></div>
+    <button class="nav-item active" data-section="overview">🏠 Overview</button>
+    <button class="nav-item" data-section="map">🗺️ Live Map</button>
+    <button class="nav-item" data-section="friends">👥 Friends</button>
+    <button class="nav-item" data-section="requests">🤝 Requests <span class="badge hidden" id="badge-requests">0</span></button>
+    <button class="nav-item" data-section="chats">💬 Chats <span class="badge hidden" id="badge-chats">0</span></button>
+    <button class="nav-item" data-section="trips">🏍️ Trips <span class="badge hidden" id="badge-trip-invites">0</span></button>
+    <button class="nav-item" data-section="history">📜 Trip History</button>
+    <button class="nav-item" data-section="notifications">🔔 Notifications <span class="badge hidden" id="badge-notifs">0</span></button>
+    <button class="nav-item" data-section="profile">⚙️ Profile</button>
+    <div style="flex:1"></div>
+    <div class="route-divider"></div>
+    <button class="nav-item" id="org-admin-link" style="display:none;">🛡️ Organization admin</button>
+    <button class="nav-item" id="logout-btn">🚪 Log out</button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="section-heading">Overview</h1>
+      <button class="live-toggle" id="live-toggle">
+        <span class="pulse-dot offline" id="live-toggle-dot"></span>
+        <span id="live-toggle-text">Location off</span>
+      </button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section id="section-overview" class="section">
+      <div class="grid-3" style="margin-bottom:16px;">
+        <div class="card"><div class="stat" id="ov-friends">0</div><div class="stat-label">Friends</div></div>
+        <div class="card"><div class="stat" id="ov-trips">0</div><div class="stat-label">Active trips</div></div>
+        <div class="card"><div class="stat" id="ov-nearby">0</div><div class="stat-label">Riders nearby, live</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Your profile</div>
+          <div class="row">
+            <div class="avatar" id="ov-avatar">?</div>
+            <div>
+              <div class="row-title" id="ov-name">—</div>
+              <div class="row-sub" id="ov-username">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">Recent notifications</div>
+          <div id="ov-notifs"><div class="empty-state">No notifications yet.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE MAP -->
+    <section id="section-map" class="section hidden">
+      <p style="color:var(--text-dim);margin-top:0;">Your friends who are sharing their live location appear here in real time.</p>
+      <div id="dash-map"></div>
+    </section>
+
+    <!-- FRIENDS -->
+    <section id="section-friends" class="section hidden">
+      <div class="card">
+        <div class="section-title">Find riders in your organization</div>
+        <input id="friend-search" placeholder="Search by username or name…" />
+        <div id="friend-search-results"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Your friends</div>
+        <div id="friends-list"><div class="empty-state">No friends yet — search above to connect.</div></div>
+      </div>
+    </section>
+
+    <!-- REQUESTS -->
+    <section id="section-requests" class="section hidden">
+      <div class="card">
+        <div class="section-title">Incoming requests</div>
+        <div id="incoming-requests"><div class="empty-state">Nothing pending.</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Sent requests</div>
+        <div id="outgoing-requests"><div class="empty-state">Nothing sent.</div></div>
+      </div>
+    </section>
+
+    <!-- CHATS -->
+    <section id="section-chats" class="section hidden">
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Conversations</div>
+          <div id="chat-threads"><div class="empty-state">Friend someone to start chatting.</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title" id="chat-with-title">Select a conversation</div>
+          <div class="chat-window">
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input-row">
+              <input id="chat-input" placeholder="Type a message…" disabled />
+              <button class="btn primary" id="chat-send" disabled>Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRIPS -->
+    <section id="section-trips" class="section hidden">
+      <div class="card">
+        <div class="section-title">Create a trip</div>
+        <form id="trip-form">
+          <div class="grid-2">
+            <div><label>Trip name</label><input id="trip-name" required /></div>
+            <div><label>Date</label><input id="trip-date" type="date" required /></div>
+          </div>
+          <div class="grid-2">
+            <div><label>Starting point</label><input id="trip-start" required /></div>
+            <div><label>Destination</label><input id="trip-dest" required /></div>
+          </div>
+          <div class="grid-2">
+            <div><label>Time</label><input id="trip-time" type="time" required /></div>
+            <div><label>Invite friends</label><select id="trip-invitees" multiple size="1"></select></div>
+          </div>
+          <label>Description</label>
+          <textarea id="trip-desc" placeholder="Route notes, meeting point, pace, etc."></textarea>
+          <button class="btn primary" type="submit">Create trip — you'll be the leader</button>
+        </form>
+      </div>
+
+      <div class="route-divider"></div>
+
+      <div class="tabs-inline">
+        <button class="active" data-trip-tab="mine">My trips</button>
+        <button data-trip-tab="invites">Invitations</button>
+      </div>
+      <div id="trip-mine-list"><div class="empty-state">No trips yet.</div></div>
+      <div id="trip-invites-list" class="hidden"><div class="empty-state">No pending invitations.</div></div>
+
+      <div id="trip-detail" class="hidden" style="margin-top:20px;">
+        <div class="route-divider accent"></div>
+        <div class="grid-2">
+          <div>
+            <div class="card">
+              <div class="topbar" style="margin-bottom:8px;">
+                <h3 id="trip-detail-name">Trip</h3>
+                <span class="tag" id="trip-detail-status">upcoming</span>
+              </div>
+              <div class="row-sub mono" id="trip-detail-meta"></div>
+              <p id="trip-detail-desc" style="color:var(--text-dim);"></p>
+              <div id="trip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+            </div>
+            <div class="card">
+              <div class="section-title">Members</div>
+              <div id="trip-members-list"></div>
+            </div>
+            <div class="card">
+              <div class="section-title">Invite more friends</div>
+              <select id="trip-invite-more" multiple size="4"></select>
+              <button class="btn small" id="trip-invite-more-btn" style="margin-top:8px;">Send invites</button>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="section-title">Live trip map</div>
+              <div id="trip-map"></div>
+            </div>
+            <div class="card">
+              <div class="section-title">Group chat</div>
+              <div class="chat-window" style="height:280px;">
+                <div class="chat-messages" id="trip-chat-messages"></div>
+                <div class="chat-input-row">
+                  <input id="trip-chat-input" placeholder="Message the group…" />
+                  <button class="btn primary" id="trip-chat-send">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="section-history" class="section hidden">
+      <div id="history-list"><div class="empty-state">No completed trips yet.</div></div>
+    </section>
+
+    <!-- NOTIFICATIONS -->
+    <section id="section-notifications" class="section hidden">
+      <div class="card">
+        <div class="topbar" style="margin-bottom:6px;">
+          <div class="section-title" style="margin-bottom:0;">All notifications</div>
+          <button class="btn small ghost" id="mark-all-read">Mark all read</button>
+        </div>
+        <div id="notifications-list"><div class="empty-state">Nothing yet.</div></div>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="section-profile" class="section hidden">
+      <div class="card" style="max-width:480px;">
+        <div class="section-title">Profile picture</div>
+        <div class="row">
+          <img id="profile-pic-preview" src="" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--border);display:none;" />
+          <div class="avatar" id="profile-pic-fallback" style="width:64px;height:64px;font-size:22px;">?</div>
+          <div>
+            <input type="file" id="profile-pic-input" accept="image/jpeg,image/png,image/webp" style="margin-bottom:0;" />
+            <div class="row-sub">JPEG, PNG or WEBP, up to 5MB. Resized automatically.</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="max-width:480px;">
+        <div class="section-title">Edit profile</div>
+        <label>Name</label><input id="profile-name" />
+        <label>Bio</label><textarea id="profile-bio"></textarea>
+        <label>Username <span class="row-sub">(fixed)</span></label><input id="profile-username" disabled />
+        <label>Email <span class="row-sub">(fixed)</span></label><input id="profile-email" disabled />
+        <label>Phone <span class="row-sub">(private until friends accept)</span></label><input id="profile-phone" disabled />
+        <button class="btn primary" id="profile-save">Save changes</button>
+        <div id="profile-saved" class="success-msg hidden">Saved.</div>
+      </div>
+      <div class="card" style="max-width:480px;">
+        <div class="section-title">Session</div>
+        <button class="btn ghost" id="logout-all-btn">Log out on all devices</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/dashboard-overview.js"></script>
+<script src="js/dashboard-friends.js"></script>
+<script src="js/dashboard-chat.js"></script>
+<script src="js/dashboard-trips.js"></script>
+<script src="js/dashboard-notifs-profile.js"></script>
+<script>showSection('overview');</script>
+</body>
+</html>

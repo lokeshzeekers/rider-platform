@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RideMesh — Organization Admin</title>
+<link rel="stylesheet" href="css/styles.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">🛡️ Org Admin</div>
+    <div class="row-sub" id="org-admin-badge" style="padding:0 10px 10px;"></div>
+    <button class="nav-item active" data-asection="summary">📊 Summary</button>
+    <button class="nav-item" data-asection="users">👥 Users</button>
+    <button class="nav-item" data-asection="trips">🏍️ Trips</button>
+    <button class="nav-item" data-asection="riders">📍 Active riders</button>
+    <div style="flex:1"></div>
+    <div class="route-divider"></div>
+    <button class="nav-item" id="back-to-app">↩️ Back to dashboard</button>
+    <button class="nav-item" id="admin-logout">🚪 Log out</button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar"><h1 id="asection-heading">Summary</h1></div>
+
+    <section id="asection-summary" class="section">
+      <div class="grid-3">
+        <div class="card"><div class="stat" id="s-total-users">0</div><div class="stat-label">Total users</div></div>
+        <div class="card"><div class="stat" id="s-active-users">0</div><div class="stat-label">Active accounts</div></div>
+        <div class="card"><div class="stat" id="s-disabled-users">0</div><div class="stat-label">Disabled accounts</div></div>
+      </div>
+      <div class="grid-3" style="margin-top:16px;">
+        <div class="card"><div class="stat" id="s-live-riders">0</div><div class="stat-label">Live riders now</div></div>
+        <div class="card"><div class="stat" id="s-active-trips">0</div><div class="stat-label">Active trips</div></div>
+        <div class="card"><div class="stat" id="s-completed-trips">0</div><div class="stat-label">Completed trips</div></div>
+      </div>
+    </section>
+
+    <section id="asection-users" class="section hidden">
+      <div class="card">
+        <input id="user-search" placeholder="Search users by username, name, email or phone…" />
+      </div>
+      <div id="users-list"></div>
+    </section>
+
+    <section id="asection-trips" class="section hidden">
+      <div id="trips-list"></div>
+    </section>
+
+    <section id="asection-riders" class="section hidden">
+      <p style="color:var(--text-dim);margin-top:0;">Riders in your organization currently broadcasting a live location.</p>
+      <div id="admin-map"></div>
+      <div id="riders-list" style="margin-top:14px;"></div>
+    </section>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/org-admin.js"></script>
+</body>
+</html>
