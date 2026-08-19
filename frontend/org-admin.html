@@ -2,45 +2,58 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>RideMesh — Organization Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>RideX — Organisation Administration</title>
 <link rel="stylesheet" href="css/styles.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
-<body>
+<body class="admin-app">
+
+<div class="mobile-topbar">
+  <button class="hamburger-btn" id="sidebar-toggle" aria-label="Open menu"><i data-lucide="menu" class="icon"></i></button>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><i data-lucide="shield" class="icon"></i></span>
+    RideX <span class="brand-sub" style="margin-left:4px;">Admin</span>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
 <div class="app-shell">
-  <aside class="sidebar">
-    <div class="brand">🛡️ Org Admin</div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="shield" class="icon"></i></span>
+      <span>RideX<span class="brand-sub">Organisation Admin</span></span>
+    </div>
     <div class="row-sub" id="org-admin-badge" style="padding:0 10px 10px;"></div>
-    <button class="nav-item active" data-asection="summary">📊 Summary</button>
-    <button class="nav-item" data-asection="users">👥 Users</button>
-    <button class="nav-item" data-asection="trips">🏍️ Trips</button>
-    <button class="nav-item" data-asection="riders">📍 Active riders</button>
+    <button class="nav-item active" data-asection="summary"><i data-lucide="chart-no-axes-combined" class="icon"></i><span class="nav-label">Organisation Overview</span></button>
+    <button class="nav-item" data-asection="users"><i data-lucide="users-round" class="icon"></i><span class="nav-label">Riders</span></button>
+    <button class="nav-item" data-asection="trips"><i data-lucide="route" class="icon"></i><span class="nav-label">Trips</span></button>
+    <button class="nav-item" data-asection="riders"><i data-lucide="map-pin" class="icon"></i><span class="nav-label">Live Rider Locations</span></button>
     <div style="flex:1"></div>
     <div class="route-divider"></div>
-    <button class="nav-item" id="back-to-app">↩️ Back to dashboard</button>
-    <button class="nav-item" id="admin-logout">🚪 Log out</button>
+    <button class="nav-item" id="back-to-app"><i data-lucide="arrow-left" class="icon"></i><span class="nav-label">Back to Dashboard</span></button>
+    <button class="nav-item" id="admin-logout"><i data-lucide="log-out" class="icon"></i><span class="nav-label">Log out</span></button>
   </aside>
 
   <main class="main">
-    <div class="topbar"><h1 id="asection-heading">Summary</h1></div>
+    <div class="topbar"><h1 id="asection-heading">Organisation Overview</h1></div>
 
     <section id="asection-summary" class="section">
       <div class="grid-3">
-        <div class="card"><div class="stat" id="s-total-users">0</div><div class="stat-label">Total users</div></div>
-        <div class="card"><div class="stat" id="s-active-users">0</div><div class="stat-label">Active accounts</div></div>
-        <div class="card"><div class="stat" id="s-disabled-users">0</div><div class="stat-label">Disabled accounts</div></div>
+        <div class="card"><div class="stat" id="s-total-users">0</div><div class="stat-label">Total Riders</div></div>
+        <div class="card"><div class="stat" id="s-active-users">0</div><div class="stat-label">Active Accounts</div></div>
+        <div class="card"><div class="stat" id="s-disabled-users">0</div><div class="stat-label">Disabled Accounts</div></div>
       </div>
       <div class="grid-3" style="margin-top:16px;">
-        <div class="card"><div class="stat" id="s-live-riders">0</div><div class="stat-label">Live riders now</div></div>
-        <div class="card"><div class="stat" id="s-active-trips">0</div><div class="stat-label">Active trips</div></div>
-        <div class="card"><div class="stat" id="s-completed-trips">0</div><div class="stat-label">Completed trips</div></div>
+        <div class="card"><div class="stat" id="s-live-riders">0</div><div class="stat-label">Live Riders Now</div></div>
+        <div class="card"><div class="stat" id="s-active-trips">0</div><div class="stat-label">Active Trips</div></div>
+        <div class="card"><div class="stat" id="s-completed-trips">0</div><div class="stat-label">Completed Trips</div></div>
       </div>
     </section>
 
     <section id="asection-users" class="section hidden">
       <div class="card">
-        <input id="user-search" placeholder="Search users by username, name, email or phone…" />
+        <input id="user-search" placeholder="Search riders by username, name, email or phone…" />
       </div>
       <div id="users-list"></div>
     </section>
@@ -50,7 +63,7 @@
     </section>
 
     <section id="asection-riders" class="section hidden">
-      <p style="color:var(--text-dim);margin-top:0;">Riders in your organization currently broadcasting a live location.</p>
+      <p style="color:var(--text-dim);margin-top:0;">Riders in your organisation currently broadcasting a live location.</p>
       <div id="admin-map"></div>
       <div id="riders-list" style="margin-top:14px;"></div>
     </section>
@@ -58,8 +71,24 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/org-admin.js"></script>
+<script>
+if (window.lucide) lucide.createIcons();
+(function () {
+  var toggle = document.getElementById('sidebar-toggle');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebar-overlay');
+  function closeDrawer() { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+  function openDrawer() { sidebar.classList.add('open'); overlay.classList.add('open'); }
+  if (toggle) toggle.addEventListener('click', openDrawer);
+  if (overlay) overlay.addEventListener('click', closeDrawer);
+  document.querySelectorAll('.sidebar .nav-item').forEach(function (btn) {
+    btn.addEventListener('click', closeDrawer);
+  });
+})();
+</script>
 </body>
 </html>

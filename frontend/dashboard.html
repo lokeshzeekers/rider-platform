@@ -2,29 +2,43 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>RideMesh — Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>RideX — Dashboard</title>
 <link rel="stylesheet" href="css/styles.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
-<body>
+<body class="rider-app">
+
+<!-- Mobile top bar (shown < 900px) -->
+<div class="mobile-topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><i data-lucide="navigation"></i></span>
+    RideX
+    <span class="pulse-dot offline" id="my-status-dot-mobile" style="margin-left:8px;"></span>
+  </div>
+</div>
+
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="brand">📍 RideMesh <span class="pulse-dot offline" id="my-status-dot"></span></div>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="navigation"></i></span>
+      RideX
+      <span class="pulse-dot offline" id="my-status-dot"></span>
+    </div>
     <div class="row-sub" id="org-badge" style="padding:0 10px 10px;"></div>
-    <button class="nav-item active" data-section="overview">🏠 Overview</button>
-    <button class="nav-item" data-section="map">🗺️ Live Map</button>
-    <button class="nav-item" data-section="friends">👥 Friends</button>
-    <button class="nav-item" data-section="requests">🤝 Requests <span class="badge hidden" id="badge-requests">0</span></button>
-    <button class="nav-item" data-section="chats">💬 Chats <span class="badge hidden" id="badge-chats">0</span></button>
-    <button class="nav-item" data-section="trips">🏍️ Trips <span class="badge hidden" id="badge-trip-invites">0</span></button>
-    <button class="nav-item" data-section="history">📜 Trip History</button>
-    <button class="nav-item" data-section="notifications">🔔 Notifications <span class="badge hidden" id="badge-notifs">0</span></button>
-    <button class="nav-item" data-section="profile">⚙️ Profile</button>
+    <button class="nav-item active" data-section="overview"><i data-lucide="layout-dashboard" class="icon"></i><span class="nav-label">Overview</span></button>
+    <button class="nav-item" data-section="map"><i data-lucide="map-pin" class="icon"></i><span class="nav-label">Live Map</span></button>
+    <button class="nav-item" data-section="friends"><i data-lucide="users" class="icon"></i><span class="nav-label">Friends</span></button>
+    <button class="nav-item" data-section="requests"><i data-lucide="user-plus" class="icon"></i><span class="nav-label">Friend Requests</span> <span class="badge hidden" id="badge-requests">0</span></button>
+    <button class="nav-item" data-section="chats"><i data-lucide="message-circle" class="icon"></i><span class="nav-label">Chats</span> <span class="badge hidden" id="badge-chats">0</span></button>
+    <button class="nav-item" data-section="trips"><i data-lucide="route" class="icon"></i><span class="nav-label">Trips</span> <span class="badge hidden" id="badge-trip-invites">0</span></button>
+    <button class="nav-item" data-section="history"><i data-lucide="history" class="icon"></i><span class="nav-label">Trip History</span></button>
+    <button class="nav-item" data-section="notifications"><i data-lucide="bell" class="icon"></i><span class="nav-label">Notifications</span> <span class="badge hidden" id="badge-notifs">0</span></button>
+    <button class="nav-item" data-section="profile"><i data-lucide="user-circle" class="icon"></i><span class="nav-label">Profile</span></button>
     <div style="flex:1"></div>
     <div class="route-divider"></div>
-    <button class="nav-item" id="org-admin-link" style="display:none;">🛡️ Organization admin</button>
-    <button class="nav-item" id="logout-btn">🚪 Log out</button>
+    <button class="nav-item" id="org-admin-link" style="display:none;"><i data-lucide="shield" class="icon"></i><span class="nav-label">Organisation Admin</span></button>
+    <button class="nav-item" id="logout-btn"><i data-lucide="log-out" class="icon"></i><span class="nav-label">Log out</span></button>
   </aside>
 
   <main class="main">
@@ -40,12 +54,12 @@
     <section id="section-overview" class="section">
       <div class="grid-3" style="margin-bottom:16px;">
         <div class="card"><div class="stat" id="ov-friends">0</div><div class="stat-label">Friends</div></div>
-        <div class="card"><div class="stat" id="ov-trips">0</div><div class="stat-label">Active trips</div></div>
-        <div class="card"><div class="stat" id="ov-nearby">0</div><div class="stat-label">Riders nearby, live</div></div>
+        <div class="card"><div class="stat" id="ov-trips">0</div><div class="stat-label">Active Trips</div></div>
+        <div class="card"><div class="stat" id="ov-nearby">0</div><div class="stat-label">Riders Nearby, Live</div></div>
       </div>
       <div class="grid-2">
         <div class="card">
-          <div class="section-title">Your profile</div>
+          <div class="section-title">Your Profile</div>
           <div class="row">
             <div class="avatar" id="ov-avatar">?</div>
             <div>
@@ -55,7 +69,7 @@
           </div>
         </div>
         <div class="card">
-          <div class="section-title">Recent notifications</div>
+          <div class="section-title">Recent Notifications</div>
           <div id="ov-notifs"><div class="empty-state">No notifications yet.</div></div>
         </div>
       </div>
@@ -70,12 +84,12 @@
     <!-- FRIENDS -->
     <section id="section-friends" class="section hidden">
       <div class="card">
-        <div class="section-title">Find riders in your organization</div>
+        <div class="section-title">Find Riders in Your Organisation</div>
         <input id="friend-search" placeholder="Search by username or name…" />
         <div id="friend-search-results"></div>
       </div>
       <div class="card">
-        <div class="section-title">Your friends</div>
+        <div class="section-title">Your Friends</div>
         <div id="friends-list"><div class="empty-state">No friends yet — search above to connect.</div></div>
       </div>
     </section>
@@ -83,11 +97,11 @@
     <!-- REQUESTS -->
     <section id="section-requests" class="section hidden">
       <div class="card">
-        <div class="section-title">Incoming requests</div>
+        <div class="section-title">Incoming Requests</div>
         <div id="incoming-requests"><div class="empty-state">Nothing pending.</div></div>
       </div>
       <div class="card">
-        <div class="section-title">Sent requests</div>
+        <div class="section-title">Sent Requests</div>
         <div id="outgoing-requests"><div class="empty-state">Nothing sent.</div></div>
       </div>
     </section>
@@ -115,7 +129,7 @@
     <!-- TRIPS -->
     <section id="section-trips" class="section hidden">
       <div class="card">
-        <div class="section-title">Create a trip</div>
+        <div class="section-title">Create a Trip</div>
         <form id="trip-form">
           <div class="grid-2">
             <div><label>Trip name</label><input id="trip-name" required /></div>
@@ -138,7 +152,7 @@
       <div class="route-divider"></div>
 
       <div class="tabs-inline">
-        <button class="active" data-trip-tab="mine">My trips</button>
+        <button class="active" data-trip-tab="mine">My Trips</button>
         <button data-trip-tab="invites">Invitations</button>
       </div>
       <div id="trip-mine-list"><div class="empty-state">No trips yet.</div></div>
@@ -162,18 +176,18 @@
               <div id="trip-members-list"></div>
             </div>
             <div class="card">
-              <div class="section-title">Invite more friends</div>
+              <div class="section-title">Invite More Friends</div>
               <select id="trip-invite-more" multiple size="4"></select>
               <button class="btn small" id="trip-invite-more-btn" style="margin-top:8px;">Send invites</button>
             </div>
           </div>
           <div>
             <div class="card">
-              <div class="section-title">Live trip map</div>
+              <div class="section-title">Live Trip Map</div>
               <div id="trip-map"></div>
             </div>
             <div class="card">
-              <div class="section-title">Group chat</div>
+              <div class="section-title">Group Chat</div>
               <div class="chat-window" style="height:280px;">
                 <div class="chat-messages" id="trip-chat-messages"></div>
                 <div class="chat-input-row">
@@ -196,7 +210,7 @@
     <section id="section-notifications" class="section hidden">
       <div class="card">
         <div class="topbar" style="margin-bottom:6px;">
-          <div class="section-title" style="margin-bottom:0;">All notifications</div>
+          <div class="section-title" style="margin-bottom:0;">All Notifications</div>
           <button class="btn small ghost" id="mark-all-read">Mark all read</button>
         </div>
         <div id="notifications-list"><div class="empty-state">Nothing yet.</div></div>
@@ -206,7 +220,7 @@
     <!-- PROFILE -->
     <section id="section-profile" class="section hidden">
       <div class="card" style="max-width:480px;">
-        <div class="section-title">Profile picture</div>
+        <div class="section-title">Profile Picture</div>
         <div class="row">
           <img id="profile-pic-preview" src="" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--border);display:none;" />
           <div class="avatar" id="profile-pic-fallback" style="width:64px;height:64px;font-size:22px;">?</div>
@@ -217,7 +231,7 @@
         </div>
       </div>
       <div class="card" style="max-width:480px;">
-        <div class="section-title">Edit profile</div>
+        <div class="section-title">Edit Profile</div>
         <label>Name</label><input id="profile-name" />
         <label>Bio</label><textarea id="profile-bio"></textarea>
         <label>Username <span class="row-sub">(fixed)</span></label><input id="profile-username" disabled />
@@ -235,8 +249,34 @@
   </main>
 </div>
 
+<!-- Mobile bottom navigation: thumb-priority sections -->
+<nav class="bottom-nav" aria-label="Primary">
+  <button class="nav-item bottom-nav-item active" data-section="overview"><i data-lucide="home" class="icon"></i><span>Home</span></button>
+  <button class="nav-item bottom-nav-item" data-section="map"><i data-lucide="map-pin" class="icon"></i><span>Map</span></button>
+  <button class="nav-item bottom-nav-item" data-section="trips" style="position:relative;"><i data-lucide="route" class="icon"></i><span>Trips</span><span class="badge hidden" id="badge-trip-invites-bottom" style="position:absolute;top:2px;right:calc(50% - 20px);"></span></button>
+  <button class="nav-item bottom-nav-item" data-section="friends"><i data-lucide="users" class="icon"></i><span>Friends</span></button>
+  <button type="button" class="bottom-nav-item" id="more-btn"><i data-lucide="menu" class="icon"></i><span>More</span></button>
+</nav>
+
+<!-- Mobile "More" sheet: remaining sections -->
+<div class="mobile-more-sheet" id="more-sheet">
+  <div class="sheet-panel">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">More</div>
+    <button class="nav-item" data-section="requests"><i data-lucide="user-plus" class="icon"></i><span class="nav-label">Friend Requests</span> <span class="badge hidden" id="badge-requests-more">0</span></button>
+    <button class="nav-item" data-section="chats"><i data-lucide="message-circle" class="icon"></i><span class="nav-label">Chats</span> <span class="badge hidden" id="badge-chats-more">0</span></button>
+    <button class="nav-item" data-section="history"><i data-lucide="history" class="icon"></i><span class="nav-label">Trip History</span></button>
+    <button class="nav-item" data-section="notifications"><i data-lucide="bell" class="icon"></i><span class="nav-label">Notifications</span> <span class="badge hidden" id="badge-notifs-more">0</span></button>
+    <button class="nav-item" data-section="profile"><i data-lucide="user-circle" class="icon"></i><span class="nav-label">Profile</span></button>
+    <div class="route-divider"></div>
+    <button class="nav-item" id="org-admin-link-mobile" style="display:none;"><i data-lucide="shield" class="icon"></i><span class="nav-label">Organisation Admin</span></button>
+    <button class="nav-item" id="logout-btn-mobile"><i data-lucide="log-out" class="icon"></i><span class="nav-label">Log out</span></button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/dashboard.js"></script>
@@ -245,6 +285,67 @@
 <script src="js/dashboard-chat.js"></script>
 <script src="js/dashboard-trips.js"></script>
 <script src="js/dashboard-notifs-profile.js"></script>
-<script>showSection('overview');</script>
+<script>
+showSection('overview');
+if (window.lucide) lucide.createIcons();
+
+// --- Mobile-only additive UI wiring (does not touch existing app logic) ---
+(function () {
+  var moreBtn = document.getElementById('more-btn');
+  var sheet = document.getElementById('more-sheet');
+  function closeSheet() { sheet.classList.remove('open'); }
+  function openSheet() { sheet.classList.add('open'); }
+  if (moreBtn) moreBtn.addEventListener('click', openSheet);
+  if (sheet) sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+  // Close the sheet whenever any nav-item inside it is used to switch sections
+  document.querySelectorAll('#more-sheet .nav-item[data-section]').forEach(function (btn) {
+    btn.addEventListener('click', closeSheet);
+  });
+  // Keep bottom nav active-state and mobile top status dot in sync with the app's own section switching
+  var headingOverrides = { requests: 'Friend Requests', history: 'Trip History', map: 'Live Map' };
+  var origShowSection = window.showSection;
+  window.showSection = function (name) {
+    origShowSection(name);
+    if (headingOverrides[name]) {
+      document.getElementById('section-heading').textContent = headingOverrides[name];
+    }
+    document.querySelectorAll('.bottom-nav-item[data-section]').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.section === name);
+    });
+    if (window.lucide) lucide.createIcons();
+  };
+  // Mirror duplicated logout/org-admin buttons in the More sheet to the sidebar originals
+  var orgAdminMobile = document.getElementById('org-admin-link-mobile');
+  var orgAdminDesktop = document.getElementById('org-admin-link');
+  if (orgAdminMobile && orgAdminDesktop) {
+    orgAdminMobile.addEventListener('click', function () { orgAdminDesktop.click(); });
+    var syncOrgAdminVisibility = function () {
+      orgAdminMobile.style.display = orgAdminDesktop.style.display;
+    };
+    syncOrgAdminVisibility();
+    new MutationObserver(syncOrgAdminVisibility).observe(orgAdminDesktop, { attributes: true, attributeFilter: ['style'] });
+  }
+  var logoutMobile = document.getElementById('logout-btn-mobile');
+  var logoutDesktop = document.getElementById('logout-btn');
+  if (logoutMobile && logoutDesktop) {
+    logoutMobile.addEventListener('click', function () { logoutDesktop.click(); });
+  }
+  // Mirror notification/request/chat badge counts into the More sheet's duplicate badges
+  function mirrorBadge(srcId, destId) {
+    var src = document.getElementById(srcId), dest = document.getElementById(destId);
+    if (!src || !dest) return;
+    var sync = function () {
+      dest.textContent = src.textContent;
+      dest.classList.toggle('hidden', src.classList.contains('hidden'));
+    };
+    sync();
+    new MutationObserver(sync).observe(src, { childList: true, attributes: true, characterData: true, subtree: true });
+  }
+  mirrorBadge('badge-requests', 'badge-requests-more');
+  mirrorBadge('badge-chats', 'badge-chats-more');
+  mirrorBadge('badge-notifs', 'badge-notifs-more');
+  mirrorBadge('badge-trip-invites', 'badge-trip-invites-bottom');
+})();
+</script>
 </body>
 </html>

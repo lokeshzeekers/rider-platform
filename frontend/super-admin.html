@@ -2,44 +2,57 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>RideMesh — Super Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>RideX — Super Admin</title>
 <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body>
+<body class="admin-app">
+
+<div class="mobile-topbar">
+  <button class="hamburger-btn" id="sidebar-toggle" aria-label="Open menu"><i data-lucide="menu" class="icon"></i></button>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"><i data-lucide="navigation"></i></span>
+    RideX <span class="brand-sub" style="margin-left:4px;">Super Admin</span>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
 <div class="app-shell">
-  <aside class="sidebar">
-    <div class="brand">👑 Super Admin</div>
-    <button class="nav-item active" data-ssection="summary">📊 Platform overview</button>
-    <button class="nav-item" data-ssection="organizations">🏢 Organizations</button>
-    <button class="nav-item" data-ssection="users">👥 All users</button>
-    <button class="nav-item" data-ssection="plans">💳 Plans (dormant)</button>
-    <button class="nav-item" data-ssection="audit">📜 Audit log</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="navigation"></i></span>
+      <span>RideX<span class="brand-sub">Super Admin</span></span>
+    </div>
+    <button class="nav-item active" data-ssection="summary"><i data-lucide="chart-no-axes-combined" class="icon"></i><span class="nav-label">Platform Overview</span></button>
+    <button class="nav-item" data-ssection="organizations"><i data-lucide="building-2" class="icon"></i><span class="nav-label">Organisations</span></button>
+    <button class="nav-item" data-ssection="users"><i data-lucide="users-round" class="icon"></i><span class="nav-label">Riders</span></button>
+    <button class="nav-item" data-ssection="plans"><i data-lucide="credit-card" class="icon"></i><span class="nav-label">Plans (Dormant)</span></button>
+    <button class="nav-item" data-ssection="audit"><i data-lucide="scroll-text" class="icon"></i><span class="nav-label">Audit Logs</span></button>
     <div style="flex:1"></div>
     <div class="route-divider"></div>
-    <button class="nav-item" id="sa-logout">🚪 Log out</button>
+    <button class="nav-item" id="sa-logout"><i data-lucide="log-out" class="icon"></i><span class="nav-label">Log out</span></button>
   </aside>
 
   <main class="main">
-    <div class="topbar"><h1 id="ssection-heading">Platform overview</h1></div>
+    <div class="topbar"><h1 id="ssection-heading">Platform Overview</h1></div>
 
     <!-- SUMMARY -->
     <section id="ssection-summary" class="section">
       <div class="grid-3">
-        <div class="card"><div class="stat" id="p-total-orgs">0</div><div class="stat-label">Organizations</div></div>
-        <div class="card"><div class="stat" id="p-active-orgs">0</div><div class="stat-label">Active orgs</div></div>
-        <div class="card"><div class="stat" id="p-disabled-orgs">0</div><div class="stat-label">Disabled orgs</div></div>
+        <div class="card"><div class="stat" id="p-total-orgs">0</div><div class="stat-label">Organisations</div></div>
+        <div class="card"><div class="stat" id="p-active-orgs">0</div><div class="stat-label">Active Organisations</div></div>
+        <div class="card"><div class="stat" id="p-disabled-orgs">0</div><div class="stat-label">Disabled Organisations</div></div>
       </div>
       <div class="grid-3" style="margin-top:16px;">
-        <div class="card"><div class="stat" id="p-total-users">0</div><div class="stat-label">Total riders</div></div>
-        <div class="card"><div class="stat" id="p-live-riders">0</div><div class="stat-label">Live right now</div></div>
-        <div class="card"><div class="stat" id="p-active-trips">0</div><div class="stat-label">Active trips</div></div>
+        <div class="card"><div class="stat" id="p-total-users">0</div><div class="stat-label">Total Riders</div></div>
+        <div class="card"><div class="stat" id="p-live-riders">0</div><div class="stat-label">Live Right Now</div></div>
+        <div class="card"><div class="stat" id="p-active-trips">0</div><div class="stat-label">Active Trips</div></div>
       </div>
       <div class="card" style="margin-top:16px;">
-        <div class="section-title">Plan distribution</div>
+        <div class="section-title">Plan Distribution</div>
         <div id="plan-distribution"><div class="empty-state">Loading…</div></div>
         <p class="row-sub" style="margin-top:10px;">
-          Monetization is currently disabled — every organization is on the unrestricted launch plan. This view will populate once billing is activated.
+          Monetization is currently disabled — every organisation is on the unrestricted launch plan. This view will populate once billing is activated.
         </p>
       </div>
     </section>
@@ -47,17 +60,17 @@
     <!-- ORGANIZATIONS -->
     <section id="ssection-organizations" class="section hidden">
       <div class="card">
-        <div class="section-title">Create a new organization</div>
+        <div class="section-title">Create a New Organisation</div>
         <form id="org-create-form">
           <div class="grid-2">
-            <div><label>Organization name</label><input id="new-org-name" required placeholder="e.g. Coimbatore Riders" /></div>
-            <div><label>Org code (login slug)</label><input id="new-org-slug" required placeholder="e.g. coimbatore-riders" pattern="[a-z0-9-]{3,40}" /></div>
+            <div><label>Organisation name</label><input id="new-org-name" required placeholder="e.g. Coimbatore Riders" /></div>
+            <div><label>Organisation code (login slug)</label><input id="new-org-slug" required placeholder="e.g. coimbatore-riders" pattern="[a-z0-9-]{3,40}" /></div>
           </div>
-          <button class="btn primary" type="submit">Create organization</button>
+          <button class="btn primary" type="submit">Create organisation</button>
         </form>
       </div>
       <div class="card">
-        <input id="org-search" placeholder="Search organizations by name or code…" />
+        <input id="org-search" placeholder="Search organisations by name or code…" />
       </div>
       <div id="organizations-list"></div>
 
@@ -66,25 +79,25 @@
         <div class="route-divider accent"></div>
         <div class="card">
           <div class="topbar" style="margin-bottom:6px;">
-            <h3 id="org-detail-name">Organization</h3>
+            <h3 id="org-detail-name">Organisation</h3>
             <span class="tag" id="org-detail-status">active</span>
           </div>
           <div class="row-sub mono" id="org-detail-code"></div>
           <div class="grid-3" style="margin-top:12px;">
-            <div><div class="stat" id="org-detail-users" style="font-size:22px;">0</div><div class="stat-label">Users</div></div>
+            <div><div class="stat" id="org-detail-users" style="font-size:22px;">0</div><div class="stat-label">Riders</div></div>
             <div><div class="stat" id="org-detail-trips" style="font-size:22px;">0</div><div class="stat-label">Trips</div></div>
-            <div><div class="stat" id="org-detail-live" style="font-size:22px;">0</div><div class="stat-label">Live now</div></div>
+            <div><div class="stat" id="org-detail-live" style="font-size:22px;">0</div><div class="stat-label">Live Now</div></div>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-            <button class="btn small danger" id="org-detail-toggle">Deactivate organization</button>
+            <button class="btn small danger" id="org-detail-toggle">Deactivate organisation</button>
           </div>
         </div>
         <div class="card">
-          <div class="section-title">Organization admins</div>
+          <div class="section-title">Organisation Administrators</div>
           <div id="org-detail-admins"></div>
         </div>
         <div class="card">
-          <div class="section-title">Create a new organization admin</div>
+          <div class="section-title">Create a New Organisation Administrator</div>
           <div class="grid-2">
             <div><label>Username</label><input id="new-admin-username" /></div>
             <div><label>Name</label><input id="new-admin-name" /></div>
@@ -94,7 +107,7 @@
             <div><label>Phone</label><input id="new-admin-phone" /></div>
           </div>
           <label>Temporary password</label><input id="new-admin-password" type="password" minlength="8" />
-          <button class="btn primary small" id="create-admin-btn">Create admin</button>
+          <button class="btn primary small" id="create-admin-btn">Create administrator</button>
         </div>
       </div>
     </section>
@@ -102,7 +115,7 @@
     <!-- USERS -->
     <section id="ssection-users" class="section hidden">
       <div class="card">
-        <input id="platform-user-search" placeholder="Search every rider on the platform, across all organizations…" />
+        <input id="platform-user-search" placeholder="Search every rider on the platform, across all organisations…" />
       </div>
       <div id="platform-users-list"></div>
     </section>
@@ -112,7 +125,7 @@
       <div class="card">
         <p class="row-sub" style="margin-top:0;">
           Plans are configurable now so the workflow exists, but enforcement is switched off
-          (<span class="mono">MONETIZATION_ENABLED=false</span>). Every org and user has full access regardless of plan.
+          (<span class="mono">MONETIZATION_ENABLED=false</span>). Every organisation and rider has full access regardless of plan.
         </p>
       </div>
       <div id="plans-list"></div>
@@ -126,8 +139,24 @@
   </main>
 </div>
 
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/super-admin.js"></script>
+<script>
+if (window.lucide) lucide.createIcons();
+(function () {
+  var toggle = document.getElementById('sidebar-toggle');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebar-overlay');
+  function closeDrawer() { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+  function openDrawer() { sidebar.classList.add('open'); overlay.classList.add('open'); }
+  if (toggle) toggle.addEventListener('click', openDrawer);
+  if (overlay) overlay.addEventListener('click', closeDrawer);
+  document.querySelectorAll('.sidebar .nav-item').forEach(function (btn) {
+    btn.addEventListener('click', closeDrawer);
+  });
+})();
+</script>
 </body>
 </html>
