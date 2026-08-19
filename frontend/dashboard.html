@@ -60,13 +60,22 @@
       <div class="grid-2">
         <div class="card">
           <div class="section-title">Your Profile</div>
-          <div class="row">
-            <div class="avatar" id="ov-avatar">?</div>
-            <div>
+          <div class="row" style="border-bottom:none;padding-bottom:8px;">
+            <span id="ov-avatar-wrap"></span>
+            <div style="min-width:0;">
               <div class="row-title" id="ov-name">—</div>
               <div class="row-sub" id="ov-username">—</div>
             </div>
+            <div style="margin-left:auto;flex-shrink:0;">
+              <span class="live-badge is-offline" id="ov-live-badge-wrap" style="display:inline-flex;">
+                <span class="pulse-dot offline" id="ov-live-dot" style="width:7px;height:7px;"></span>
+                <span id="ov-live-text">Offline</span>
+              </span>
+            </div>
           </div>
+          <div class="route-divider" style="margin:10px 0;"></div>
+          <div class="row-sub" style="margin-bottom:8px;">Rider ID: <span class="mono" id="ov-rider-id">—</span> · Organisation: <span id="ov-org">—</span></div>
+          <div class="row-sub" id="ov-bio">—</div>
         </div>
         <div class="card">
           <div class="section-title">Recent Notifications</div>
@@ -157,45 +166,52 @@
       </div>
       <div id="trip-mine-list"><div class="empty-state">No trips yet.</div></div>
       <div id="trip-invites-list" class="hidden"><div class="empty-state">No pending invitations.</div></div>
+    </section>
 
-      <div id="trip-detail" class="hidden" style="margin-top:20px;">
-        <div class="route-divider accent"></div>
-        <div class="grid-2">
-          <div>
-            <div class="card">
-              <div class="topbar" style="margin-bottom:8px;">
-                <h3 id="trip-detail-name">Trip</h3>
-                <span class="tag" id="trip-detail-status">upcoming</span>
-              </div>
-              <div class="row-sub mono" id="trip-detail-meta"></div>
-              <p id="trip-detail-desc" style="color:var(--text-dim);"></p>
-              <div id="trip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-            </div>
-            <div class="card">
-              <div class="section-title">Members</div>
-              <div id="trip-members-list"></div>
-            </div>
-            <div class="card">
-              <div class="section-title">Invite More Friends</div>
-              <select id="trip-invite-more" multiple size="4"></select>
-              <button class="btn small" id="trip-invite-more-btn" style="margin-top:8px;">Send invites</button>
-            </div>
+    <!-- DEDICATED TRIP TRACKING VIEW -->
+    <!-- Opened by clicking a trip in My Trips. Replaces the Trips page entirely (not
+         layered underneath it) until "Back to Trips" is used. -->
+    <section id="section-trip-live" class="section hidden">
+      <div class="trip-live-header">
+        <div>
+          <button class="btn ghost small trip-back-btn" id="trip-back-btn"><i data-lucide="arrow-left" class="icon icon-sm"></i> Back to Trips</button>
+          <h2 id="trip-detail-name">Trip</h2>
+          <div class="trip-live-route">
+            <span id="trip-detail-start">Start</span>
+            <i data-lucide="arrow-right" class="icon icon-sm"></i>
+            <span id="trip-detail-dest">Destination</span>
           </div>
-          <div>
-            <div class="card">
-              <div class="section-title">Live Trip Map</div>
-              <div id="trip-map"></div>
-            </div>
-            <div class="card">
-              <div class="section-title">Group Chat</div>
-              <div class="chat-window" style="height:280px;">
-                <div class="chat-messages" id="trip-chat-messages"></div>
-                <div class="chat-input-row">
-                  <input id="trip-chat-input" placeholder="Message the group…" />
-                  <button class="btn primary" id="trip-chat-send">Send</button>
-                </div>
-              </div>
-            </div>
+        </div>
+        <span class="tag" id="trip-detail-status">upcoming</span>
+      </div>
+      <div class="row-sub mono" id="trip-detail-meta" style="margin-bottom:4px;"></div>
+      <p id="trip-detail-desc" class="row-sub" style="margin:0 0 12px;"></p>
+      <div id="trip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+
+      <div class="trip-live-map-wrap">
+        <div id="trip-map" class="trip-live-map"></div>
+        <div class="map-legend">
+          <span><i class="legend-dot start"></i> Start</span>
+          <span><i class="legend-dot rider"></i> Rider</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Live Riders</div>
+        <div id="trip-members-list"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Invite More Friends</div>
+        <select id="trip-invite-more" multiple size="4"></select>
+        <button class="btn small" id="trip-invite-more-btn" style="margin-top:8px;">Send invites</button>
+      </div>
+      <div class="card">
+        <div class="section-title">Group Chat</div>
+        <div class="chat-window" style="height:280px;">
+          <div class="chat-messages" id="trip-chat-messages"></div>
+          <div class="chat-input-row">
+            <input id="trip-chat-input" placeholder="Message the group…" />
+            <button class="btn primary" id="trip-chat-send">Send</button>
           </div>
         </div>
       </div>
@@ -286,7 +302,11 @@
 <script src="js/dashboard-trips.js"></script>
 <script src="js/dashboard-notifs-profile.js"></script>
 <script>
-showSection('overview');
+(function initialRoute() {
+  if (!restoreTripFromHash()) {
+    showSection('overview');
+  }
+})();
 if (window.lucide) lucide.createIcons();
 
 // --- Mobile-only additive UI wiring (does not touch existing app logic) ---

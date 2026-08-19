@@ -1,8 +1,11 @@
 let friendsCache = [];
 let currentTripId = null;
 let currentTripIsLeader = false;
+let currentTripLeaderId = null;
+let currentTripMembers = [];
 let tripMap = null;
 let tripMarkers = {};
+let tripLocationsById = {};
 let tripLocationInterval = null;
 
 async function populateInviteeSelect(selectEl) {
@@ -111,20 +114,30 @@ document.getElementById('trip-invites-list').addEventListener('click', async (e)
   }
 });
 
+// ===== Dedicated trip tracking view =====
+// Opening a trip replaces the normal Trips page with a focused view: back button, trip
+// banner, a large live map, and the rider list. Closed = return to Trips (Create/My
+// Trips/Invitations), unchanged. The URL hash (#trip/<id>) is what survives a reload.
 async function openTripDetail(tripId) {
   currentTripId = tripId;
-  const panel = document.getElementById('trip-detail');
-  panel.classList.remove('hidden');
-  panel.scrollIntoView({ behavior: 'smooth' });
+  const topbar = document.querySelector('.topbar');
+  if (topbar) topbar.classList.add('hidden');
+  showSection('trip-live');
+  history.replaceState(null, '', '#trip/' + tripId);
+  window.scrollTo(0, 0);
 
   try {
     const data = await Api.get(`/trips/${tripId}`);
     currentTripIsLeader = data.is_leader;
+    currentTripMembers = data.members;
+    currentTripLeaderId = data.trip.leader_id;
 
     document.getElementById('trip-detail-name').textContent = data.trip.name;
     document.getElementById('trip-detail-status').textContent = data.trip.status;
     document.getElementById('trip-detail-status').className = `tag ${data.trip.status}`;
-    document.getElementById('trip-detail-meta').textContent = `${data.trip.start_point} → ${data.trip.destination} · ${String(data.trip.trip_date).slice(0, 10)} ${data.trip.trip_time}`;
+    document.getElementById('trip-detail-start').textContent = data.trip.start_point;
+    document.getElementById('trip-detail-dest').textContent = data.trip.destination;
+    document.getElementById('trip-detail-meta').textContent = `${String(data.trip.trip_date).slice(0, 10)} · ${data.trip.trip_time}`;
     document.getElementById('trip-detail-desc').textContent = data.trip.description || '';
 
     const actionsEl = document.getElementById('trip-detail-actions');
@@ -132,7 +145,7 @@ async function openTripDetail(tripId) {
     if (data.trip.status !== 'completed' && data.trip.status !== 'cancelled') {
       const shareBtn = document.createElement('button');
       shareBtn.className = 'btn small primary';
-      shareBtn.textContent = 'Share my location on this trip';
+      shareBtn.innerHTML = '<i data-lucide="navigation" class="icon icon-sm"></i> Share my location on this trip';
       shareBtn.onclick = () => startTripLocationSharing(tripId);
       actionsEl.appendChild(shareBtn);
 
@@ -151,17 +164,9 @@ async function openTripDetail(tripId) {
     } else if (data.history) {
       actionsEl.innerHTML = `<span class="row-sub mono">Distance: ${data.history.distance_km} km · Duration: ${data.history.duration_minutes} min</span>`;
     }
+    if (window.lucide) lucide.createIcons();
 
-    document.getElementById('trip-members-list').innerHTML = data.members
-      .map(
-        (m) => `
-      <div class="row">
-        ${avatarHtml(m)}
-        <div><div class="row-title">${escapeHtml(m.name)} ${m.id === data.trip.leader_id ? '<span class="tag active">Leader</span>' : ''}</div><div class="row-sub">@${escapeHtml(m.username)}</div></div>
-        <div class="row-actions"><span class="pulse-dot ${m.is_sharing_location ? '' : 'offline'}"></span></div>
-      </div>`
-      )
-      .join('');
+    renderRiderList(currentTripMembers);
 
     if (currentTripIsLeader) {
       const invMoreEl = document.getElementById('trip-invite-more');
@@ -171,13 +176,29 @@ async function openTripDetail(tripId) {
       invMoreEl.innerHTML = candidates.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option disabled>No more friends to invite</option>';
     }
 
-    initTripMap(tripId, data.members);
+    initTripMap(tripId, currentTripMembers);
     loadTripChat(tripId);
     socket.emit('trip:join', tripId);
   } catch (err) {
     alert(err.message);
+    closeTripDetail();
   }
 }
+
+function closeTripDetail() {
+  currentTripId = null;
+  currentTripMembers = [];
+  if (tripMap) {
+    tripMap.remove();
+    tripMap = null;
+  }
+  const topbar = document.querySelector('.topbar');
+  if (topbar) topbar.classList.remove('hidden');
+  history.replaceState(null, '', location.pathname + location.search);
+  showSection('trips');
+  loadTrips();
+}
+document.getElementById('trip-back-btn').addEventListener('click', closeTripDetail);
 
 document.getElementById('trip-invite-more-btn').addEventListener('click', async () => {
   const ids = Array.from(document.getElementById('trip-invite-more').selectedOptions).map((o) => o.value);
@@ -190,25 +211,144 @@ document.getElementById('trip-invite-more-btn').addEventListener('click', async 
   }
 });
 
+// ===== Live tracking map =====
+function startIcon() {
+  return L.divIcon({
+    className: '',
+    html: '<div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:#16a34a;border:2px solid white;box-shadow:0 0 8px rgba(22,163,74,.6);transform:rotate(-45deg);"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 20]
+  });
+}
+
+function haversineKmClient(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Real distance only -- returns null (never a fake number) when either point is unknown.
+function distanceFromMeKm(userId) {
+  if (userId === ME.id) return null;
+  const mine = tripLocationsById[ME.id];
+  const theirs = tripLocationsById[userId];
+  if (!mine || !theirs) return null;
+  return haversineKmClient(mine.lat, mine.lng, theirs.lat, theirs.lng);
+}
+
+function riderPopupHtml(member, isLive, distanceKm) {
+  const distText =
+    member.id === ME.id ? 'This is you' : distanceKm != null ? `${distanceKm.toFixed(1)} km away` : 'Distance unavailable';
+  return `
+    <div style="min-width:180px;">
+      <div class="row-title" style="margin-bottom:2px;">${escapeHtml(member.name)}</div>
+      <div class="row-sub" style="margin-bottom:6px;">@${escapeHtml(member.username)}<br/>Rider ID: ${member.id.slice(0, 8).toUpperCase()}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span class="pulse-dot ${isLive ? '' : 'offline'}" style="width:8px;height:8px;"></span>
+        <span style="font-size:12px;font-weight:700;color:${isLive ? 'var(--green)' : 'var(--text-dim)'};">${isLive ? 'Live' : 'Offline'}</span>
+      </div>
+      <div class="row-sub mono">${distText}</div>
+    </div>`;
+}
+
+function renderTripMapMarkers() {
+  if (!tripMap) return;
+  const memberById = {};
+  currentTripMembers.forEach((m) => (memberById[m.id] = m));
+  Object.keys(tripLocationsById).forEach((uid) => {
+    const loc = tripLocationsById[uid];
+    const member = memberById[uid];
+    if (!member) return;
+    const isLive = !!member.is_sharing_location;
+    const dist = distanceFromMeKm(uid);
+    upsertMarker(tripMap, tripMarkers, uid, loc.lat, loc.lng, riderPopupHtml(member, isLive, dist), '#2563eb');
+  });
+}
+
+function renderRiderList(members) {
+  const listEl = document.getElementById('trip-members-list');
+  if (!listEl) return;
+  listEl.innerHTML =
+    members.length === 0
+      ? '<div class="empty-state">No riders yet.</div>'
+      : members
+          .map((m) => {
+            const isLive = !!m.is_sharing_location;
+            const dist = distanceFromMeKm(m.id);
+            const distText = m.id === ME.id ? 'You' : dist != null ? `${dist.toFixed(1)} km away` : '—';
+            return `
+      <div class="rider-row" data-rider-id="${m.id}">
+        ${avatarHtml(m)}
+        <div class="rider-id-block">
+          <div class="row-title">${escapeHtml(m.name)}${m.id === currentTripLeaderId ? ' <span class="tag active">Leader</span>' : ''}</div>
+          <div class="row-sub">@${escapeHtml(m.username)} · Rider ID: ${m.id.slice(0, 8).toUpperCase()}</div>
+        </div>
+        <div class="rider-status-block">
+          <span class="live-badge ${isLive ? 'is-live' : 'is-offline'}"><span class="pulse-dot ${isLive ? '' : 'offline'}" style="width:7px;height:7px;"></span>${isLive ? 'Live' : 'Offline'}</span>
+          <span class="rider-distance">${distText}</span>
+        </div>
+      </div>`;
+          })
+          .join('');
+}
+
+document.getElementById('trip-members-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.rider-row');
+  if (!row || !tripMap) return;
+  const marker = tripMarkers[row.dataset.riderId];
+  if (marker) {
+    tripMap.setView(marker.getLatLng(), Math.max(tripMap.getZoom(), 14));
+    marker.openPopup();
+  }
+});
+
 function initTripMap(tripId) {
   const el = document.getElementById('trip-map');
   el.innerHTML = '';
+  if (tripMap) {
+    tripMap.remove();
+    tripMap = null;
+  }
   tripMarkers = {};
+  tripLocationsById = {};
   tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
   }).addTo(tripMap);
 
-  Api.get(`/trips/${tripId}/locations`).then((data) => {
-    if (data.locations.length === 0) return;
-    const bounds = [];
-    data.locations.forEach((l) => {
-      upsertMarker(tripMap, tripMarkers, l.id, l.lat, l.lng, `<b>${escapeHtml(l.name)}</b>`, '#ffb020');
-      bounds.push([l.lat, l.lng]);
-    });
-    tripMap.fitBounds(bounds, { maxZoom: 13, padding: [40, 40] });
-  });
+  Api.get(`/trips/${tripId}/locations`)
+    .then((data) => {
+      const bounds = [];
+
+      if (data.route_start && typeof data.route_start.lat === 'number') {
+        const s = data.route_start;
+        L.marker([s.lat, s.lng], { icon: startIcon() })
+          .addTo(tripMap)
+          .bindPopup(`<b>Start point</b><br/><span class="row-sub mono">Tracking began ${timeAgo(s.recorded_at)}</span>`);
+        bounds.push([s.lat, s.lng]);
+      }
+
+      data.locations.forEach((l) => {
+        tripLocationsById[l.id] = { lat: l.lat, lng: l.lng, updated_at: l.updated_at };
+        bounds.push([l.lat, l.lng]);
+      });
+
+      renderTripMapMarkers();
+      renderRiderList(currentTripMembers);
+
+      if (bounds.length > 0) {
+        tripMap.fitBounds(bounds, { maxZoom: 14, padding: [50, 50] });
+      }
+      // Leaflet sizes itself from the container's dimensions at creation time; since the
+      // section may still be mid-transition into view, re-measure shortly after.
+      setTimeout(() => tripMap && tripMap.invalidateSize(), 150);
+    })
+    .catch((err) => console.error(err));
 }
 
 function startTripLocationSharing(tripId) {
@@ -237,7 +377,11 @@ function simulateTripLocation(sendPos) {
 
 socket.on('trip:location:update', (payload) => {
   if (!tripMap || payload.trip_id !== currentTripId) return;
-  upsertMarker(tripMap, tripMarkers, payload.user_id, payload.lat, payload.lng, `<b>${escapeHtml(payload.name || 'Rider')}</b>`, '#ffb020');
+  tripLocationsById[payload.user_id] = { lat: payload.lat, lng: payload.lng, updated_at: payload.updated_at };
+  const member = currentTripMembers.find((m) => m.id === payload.user_id);
+  if (member) member.is_sharing_location = true;
+  renderTripMapMarkers();
+  renderRiderList(currentTripMembers);
 });
 socket.on('trip:member:joined', (payload) => {
   if (payload.trip_id === currentTripId) openTripDetail(currentTripId);
@@ -305,4 +449,16 @@ async function loadHistory() {
   } catch (err) {
     el.innerHTML = `<div class="error-msg">${err.message}</div>`;
   }
+}
+
+// ===== Reload persistence: restore the dedicated trip view from the URL hash =====
+// dashboard.html's bootstrap script checks location.hash before defaulting to 'overview';
+// this just exposes the entry point it calls.
+function restoreTripFromHash() {
+  const m = location.hash.match(/^#trip\/([^/]+)$/);
+  if (m) {
+    openTripDetail(m[1]);
+    return true;
+  }
+  return false;
 }

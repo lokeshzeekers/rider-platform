@@ -72,6 +72,10 @@ document.getElementById('profile-pic-input').addEventListener('change', async (e
     ME.profile_pic_url = data.profile_pic_url;
     Api.setUser(ME);
     renderProfilePic(ME);
+    // Refresh the Overview card's avatar too, so the new photo appears immediately
+    // everywhere the user's own avatar is shown, not just on this Profile page.
+    const ovAvatarWrap = document.getElementById('ov-avatar-wrap');
+    if (ovAvatarWrap) ovAvatarWrap.innerHTML = avatarHtml(ME);
   } catch (err) {
     alert(err.message);
   } finally {

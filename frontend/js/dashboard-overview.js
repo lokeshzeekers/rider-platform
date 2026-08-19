@@ -27,7 +27,27 @@ function avatarHtml(user, sizeClass = '') {
 async function loadOverview() {
   document.getElementById('ov-name').textContent = ME.name;
   document.getElementById('ov-username').textContent = '@' + ME.username;
-  document.getElementById('ov-avatar').textContent = initials(ME.name);
+  document.getElementById('ov-avatar-wrap').innerHTML = avatarHtml(ME);
+  // Rider ID: short, human-scannable form of the real account id (not invented).
+  document.getElementById('ov-rider-id').textContent = ME.id ? ME.id.slice(0, 8).toUpperCase() : '—';
+  document.getElementById('ov-org').textContent = Api.getOrgCode() || '—';
+  const ovDot = document.getElementById('ov-live-dot');
+  const ovText = document.getElementById('ov-live-text');
+  if (ovDot) ovDot.classList.toggle('offline', typeof isLive !== 'undefined' ? !isLive : true);
+  if (ovText) ovText.textContent = typeof isLive !== 'undefined' && isLive ? 'Live' : 'Offline';
+
+  const bioEl = document.getElementById('ov-bio');
+  bioEl.innerHTML =
+    ME.bio && ME.bio.trim()
+      ? escapeHtml(ME.bio)
+      : 'Add a short bio to tell other riders about yourself. <a href="#" id="ov-add-bio-link">Add bio</a>';
+  const addBioLink = document.getElementById('ov-add-bio-link');
+  if (addBioLink) {
+    addBioLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      showSection('profile');
+    });
+  }
 
   try {
     const [friends, trips, nearby, notifs] = await Promise.all([

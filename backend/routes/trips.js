@@ -212,7 +212,18 @@ module.exports = function tripsRouter(io) {
          FROM trip_locations tl JOIN users u ON u.id = tl.user_id WHERE tl.trip_id = $1`,
         [trip.id]
       );
-      res.json({ locations: r.rows });
+
+      // Real "start point" for the map: the earliest location any member actually recorded
+      // for this trip. trip_route_points is already populated by both the REST location
+      // endpoint and the trip:location:update socket handler, so this is genuine tracked
+      // data -- not a geocoded guess -- since start_point/destination on the trip itself
+      // are free-text place names with no coordinates in this schema.
+      const startRes = await query(
+        `SELECT lat, lng, recorded_at FROM trip_route_points WHERE trip_id = $1 ORDER BY id ASC LIMIT 1`,
+        [trip.id]
+      );
+
+      res.json({ locations: r.rows, route_start: startRes.rows[0] || null });
     } catch (err) {
       next(err);
     }

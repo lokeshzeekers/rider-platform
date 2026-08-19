@@ -28,7 +28,11 @@ function connectSocket() {
 
 document.getElementById('org-badge').textContent = ME ? `Org: ${Api.getOrgCode()}` : '';
 
-const sections = ['overview', 'map', 'friends', 'requests', 'chats', 'trips', 'history', 'notifications', 'profile'];
+// 'trip-live' is the dedicated single-trip tracking view opened from within Trips.
+// It has no sidebar nav-item of its own (it's reached by clicking a trip, not the nav),
+// but it's included here so it hides/shows through the exact same mechanism as every
+// other section instead of a bolted-on parallel system.
+const sections = ['overview', 'map', 'friends', 'requests', 'chats', 'trips', 'history', 'notifications', 'profile', 'trip-live'];
 function showSection(name) {
   sections.forEach((s) => {
     document.getElementById(`section-${s}`).classList.toggle('hidden', s !== name);
@@ -75,6 +79,12 @@ function setLiveUI(on) {
   document.getElementById('live-toggle-text').textContent = on ? 'Live — sharing location' : 'Location off';
   document.getElementById('live-toggle-dot').classList.toggle('offline', !on);
   document.getElementById('my-status-dot').classList.toggle('offline', !on);
+  // Overview "Your Profile" card shows the same live/offline state -- guarded with
+  // null checks since loadOverview() may not have rendered these yet on first load.
+  const ovDot = document.getElementById('ov-live-dot');
+  const ovText = document.getElementById('ov-live-text');
+  if (ovDot) ovDot.classList.toggle('offline', !on);
+  if (ovText) ovText.textContent = on ? 'Live' : 'Offline';
 }
 
 document.getElementById('live-toggle').addEventListener('click', () => {

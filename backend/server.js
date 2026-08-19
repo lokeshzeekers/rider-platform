@@ -29,7 +29,14 @@ const io = new Server(server, {
 
 // ===== Security middleware =====
 app.use(helmet({
-  contentSecurityPolicy: false // the frontend is a separate static site; CSP is configured there / at the Nginx layer
+  contentSecurityPolicy: false, // the frontend is a separate static site; CSP is configured there / at the Nginx layer
+  // Profile pictures are served from this API and loaded via <img src> from the frontend
+  // origin (which is not always identical to the API origin -- see frontend/js/config.js).
+  // Helmet's default same-origin CORP silently blocks that cross-origin image load in the
+  // browser even though the request itself succeeds, which is why uploaded photos never
+  // appeared. These routes already enforce their own auth + tenant-isolation checks
+  // (see routes/uploads.js), so relaxing CORP just for image loading is safe here.
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 app.use(cors({
   origin: (origin, callback) => {
