@@ -20,16 +20,34 @@ module.exports = function tripsRouter(io) {
 
   router.post('/', authRequired, async (req, res, next) => {
     try {
-      const { name, start_point, destination, trip_date, trip_time, description, invite_user_ids } = req.body || {};
+      const { name, start_point, destination, trip_date, trip_time, description, invite_user_ids, dest_lat, dest_lng } = req.body || {};
       if (!name || !start_point || !destination || !trip_date || !trip_time) {
         return res.status(400).json({ error: 'name, start_point, destination, trip_date and trip_time are required' });
       }
 
+      // Destination coordinates are optional, but only ever accepted as an explicit pair
+      // of real numbers supplied by the client (typed in, or the device's own geolocation)
+      // -- never derived/geocoded from the destination text.
+      let destLatVal = null;
+      let destLngVal = null;
+      const destLatProvided = dest_lat !== undefined && dest_lat !== null;
+      const destLngProvided = dest_lng !== undefined && dest_lng !== null;
+      if (destLatProvided || destLngProvided) {
+        if (typeof dest_lat !== 'number' || typeof dest_lng !== 'number') {
+          return res.status(400).json({ error: 'dest_lat and dest_lng must both be numbers if either is provided' });
+        }
+        if (dest_lat < -90 || dest_lat > 90 || dest_lng < -180 || dest_lng > 180) {
+          return res.status(400).json({ error: 'dest_lat/dest_lng out of range' });
+        }
+        destLatVal = dest_lat;
+        destLngVal = dest_lng;
+      }
+
       const trip = await withTransaction(async (client) => {
         const ins = await client.query(
-          `INSERT INTO trips (org_id, name, start_point, destination, trip_date, trip_time, description, leader_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-          [req.user.org_id, name, start_point, destination, trip_date, trip_time, description || '', req.user.id]
+          `INSERT INTO trips (org_id, name, start_point, destination, trip_date, trip_time, description, leader_id, dest_lat, dest_lng)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+          [req.user.org_id, name, start_point, destination, trip_date, trip_time, description || '', req.user.id, destLatVal, destLngVal]
         );
         const t = ins.rows[0];
         await client.query('INSERT INTO trip_members (trip_id, user_id) VALUES ($1, $2)', [t.id, req.user.id]);
@@ -107,6 +125,37 @@ module.exports = function tripsRouter(io) {
         history: historyRes.rows[0] || null,
         is_leader: isLeader(trip, req.user.id)
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Leader-only: set, update, or clear the trip's real destination coordinates.
+  // Always an explicit numeric pair (or null,null to clear) supplied by the client --
+  // never derived/geocoded from the destination place-name text.
+  router.patch('/:id/destination', authRequired, async (req, res, next) => {
+    try {
+      const trip = await getTripInOrg(req.params.id, req.user.org_id);
+      if (!trip) return res.status(404).json({ error: 'Trip not found' });
+      if (!isLeader(trip, req.user.id)) return res.status(403).json({ error: 'Only the trip leader can set destination coordinates' });
+
+      const { dest_lat, dest_lng } = req.body || {};
+      const clearing = dest_lat === null && dest_lng === null;
+      const setting = typeof dest_lat === 'number' && typeof dest_lng === 'number';
+      if (!clearing && !setting) {
+        return res.status(400).json({ error: 'dest_lat and dest_lng must both be numbers, or both null to clear' });
+      }
+      if (setting && (dest_lat < -90 || dest_lat > 90 || dest_lng < -180 || dest_lng > 180)) {
+        return res.status(400).json({ error: 'dest_lat/dest_lng out of range' });
+      }
+
+      const r = await query('UPDATE trips SET dest_lat = $1, dest_lng = $2 WHERE id = $3 RETURNING *', [
+        clearing ? null : dest_lat,
+        clearing ? null : dest_lng,
+        trip.id
+      ]);
+      io.to(`trip:${trip.id}`).emit('trip:destination:update', { trip_id: trip.id, dest_lat: r.rows[0].dest_lat, dest_lng: r.rows[0].dest_lng });
+      res.json({ trip: r.rows[0] });
     } catch (err) {
       next(err);
     }

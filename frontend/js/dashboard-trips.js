@@ -3,8 +3,10 @@ let currentTripId = null;
 let currentTripIsLeader = false;
 let currentTripLeaderId = null;
 let currentTripMembers = [];
+let currentTrip = null;
 let tripMap = null;
 let tripMarkers = {};
+let tripDestMarker = null;
 let tripLocationsById = {};
 let tripLocationInterval = null;
 
@@ -24,6 +26,15 @@ async function populateInviteeSelect(selectEl) {
 document.getElementById('trip-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const invitees = Array.from(document.getElementById('trip-invitees').selectedOptions).map((o) => o.value);
+  const destLatRaw = document.getElementById('trip-dest-lat').value.trim();
+  const destLngRaw = document.getElementById('trip-dest-lng').value.trim();
+  const errEl = document.getElementById('trip-dest-coords-error');
+  errEl.classList.add('hidden');
+  if ((destLatRaw === '') !== (destLngRaw === '')) {
+    errEl.textContent = 'Provide both destination latitude and longitude, or leave both blank.';
+    errEl.classList.remove('hidden');
+    return;
+  }
   const payload = {
     name: document.getElementById('trip-name').value.trim(),
     start_point: document.getElementById('trip-start').value.trim(),
@@ -33,13 +44,33 @@ document.getElementById('trip-form').addEventListener('submit', async (e) => {
     description: document.getElementById('trip-desc').value.trim(),
     invite_user_ids: invitees
   };
+  if (destLatRaw !== '' && destLngRaw !== '') {
+    payload.dest_lat = parseFloat(destLatRaw);
+    payload.dest_lng = parseFloat(destLngRaw);
+  }
   try {
     await Api.post('/trips', payload);
     e.target.reset();
+    document.getElementById('trip-dest-coords-details').open = false;
     loadTrips();
   } catch (err) {
     alert(err.message);
   }
+});
+
+document.getElementById('trip-dest-use-location').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert('Your browser does not support geolocation. Enter coordinates manually.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      document.getElementById('trip-dest-lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('trip-dest-lng').value = pos.coords.longitude.toFixed(6);
+    },
+    () => alert('Could not get your current location. Enter coordinates manually.'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 });
 
 document.querySelectorAll('[data-trip-tab]').forEach((btn) => {
@@ -131,6 +162,7 @@ async function openTripDetail(tripId) {
     currentTripIsLeader = data.is_leader;
     currentTripMembers = data.members;
     currentTripLeaderId = data.trip.leader_id;
+    currentTrip = data.trip;
 
     document.getElementById('trip-detail-name').textContent = data.trip.name;
     document.getElementById('trip-detail-status').textContent = data.trip.status;
@@ -139,6 +171,8 @@ async function openTripDetail(tripId) {
     document.getElementById('trip-detail-dest').textContent = data.trip.destination;
     document.getElementById('trip-detail-meta').textContent = `${String(data.trip.trip_date).slice(0, 10)} · ${data.trip.trip_time}`;
     document.getElementById('trip-detail-desc').textContent = data.trip.description || '';
+
+    renderDestinationEditor(data.trip);
 
     const actionsEl = document.getElementById('trip-detail-actions');
     actionsEl.innerHTML = '';
@@ -176,7 +210,7 @@ async function openTripDetail(tripId) {
       invMoreEl.innerHTML = candidates.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option disabled>No more friends to invite</option>';
     }
 
-    initTripMap(tripId, currentTripMembers);
+    initTripMap(tripId, data.trip);
     loadTripChat(tripId);
     socket.emit('trip:join', tripId);
   } catch (err) {
@@ -188,10 +222,14 @@ async function openTripDetail(tripId) {
 function closeTripDetail() {
   currentTripId = null;
   currentTripMembers = [];
+  currentTrip = null;
   if (tripMap) {
     tripMap.remove();
     tripMap = null;
   }
+  tripDestMarker = null;
+  document.getElementById('trip-dest-editor-card').classList.add('hidden');
+  document.getElementById('trip-dest-edit-trigger').classList.add('hidden');
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.classList.remove('hidden');
   history.replaceState(null, '', location.pathname + location.search);
@@ -199,6 +237,75 @@ function closeTripDetail() {
   loadTrips();
 }
 document.getElementById('trip-back-btn').addEventListener('click', closeTripDetail);
+
+// ===== Destination pin editor (leader-only) =====
+// Trip-level start/destination are always free-text place names; dest_lat/dest_lng are a
+// separate, optional, explicitly-set pair used only for the map marker.
+function renderDestinationEditor(trip) {
+  const card = document.getElementById('trip-dest-editor-card');
+  const trigger = document.getElementById('trip-dest-edit-trigger');
+  const hasDest = trip.dest_lat != null && trip.dest_lng != null;
+
+  if (!currentTripIsLeader) {
+    card.classList.add('hidden');
+    trigger.classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('trip-dest-editor-name').textContent = trip.destination;
+  document.getElementById('trip-dest-editor-lat').value = hasDest ? trip.dest_lat : '';
+  document.getElementById('trip-dest-editor-lng').value = hasDest ? trip.dest_lng : '';
+  document.getElementById('trip-dest-editor-error').classList.add('hidden');
+
+  if (hasDest) {
+    card.classList.add('hidden');
+    trigger.classList.remove('hidden');
+  } else {
+    card.classList.remove('hidden');
+    trigger.classList.add('hidden');
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+document.getElementById('trip-dest-edit-trigger').addEventListener('click', () => {
+  document.getElementById('trip-dest-editor-card').classList.remove('hidden');
+  document.getElementById('trip-dest-edit-trigger').classList.add('hidden');
+});
+
+document.getElementById('trip-dest-editor-use-location').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert('Your browser does not support geolocation. Enter coordinates manually.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      document.getElementById('trip-dest-editor-lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('trip-dest-editor-lng').value = pos.coords.longitude.toFixed(6);
+    },
+    () => alert('Could not get your current location. Enter coordinates manually.'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+document.getElementById('trip-dest-editor-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('trip-dest-editor-error');
+  errEl.classList.add('hidden');
+  const latRaw = document.getElementById('trip-dest-editor-lat').value.trim();
+  const lngRaw = document.getElementById('trip-dest-editor-lng').value.trim();
+  if (latRaw === '' || lngRaw === '') {
+    errEl.textContent = 'Both latitude and longitude are required to pin a destination.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!currentTripId) return;
+  try {
+    await Api.patch(`/trips/${currentTripId}/destination`, { dest_lat: parseFloat(latRaw), dest_lng: parseFloat(lngRaw) });
+    await openTripDetail(currentTripId);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+});
 
 document.getElementById('trip-invite-more-btn').addEventListener('click', async () => {
   const ids = Array.from(document.getElementById('trip-invite-more').selectedOptions).map((o) => o.value);
@@ -216,6 +323,14 @@ function startIcon() {
   return L.divIcon({
     className: '',
     html: '<div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:#16a34a;border:2px solid white;box-shadow:0 0 8px rgba(22,163,74,.6);transform:rotate(-45deg);"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 20]
+  });
+}
+function destIcon() {
+  return L.divIcon({
+    className: '',
+    html: '<div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:#7c3aed;border:2px solid white;box-shadow:0 0 8px rgba(124,58,237,.6);transform:rotate(-45deg);"></div>',
     iconSize: [20, 20],
     iconAnchor: [10, 20]
   });
@@ -306,7 +421,7 @@ document.getElementById('trip-members-list').addEventListener('click', (e) => {
   }
 });
 
-function initTripMap(tripId) {
+function initTripMap(tripId, trip) {
   const el = document.getElementById('trip-map');
   el.innerHTML = '';
   if (tripMap) {
@@ -314,6 +429,7 @@ function initTripMap(tripId) {
     tripMap = null;
   }
   tripMarkers = {};
+  tripDestMarker = null;
   tripLocationsById = {};
   tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -331,6 +447,15 @@ function initTripMap(tripId) {
           .addTo(tripMap)
           .bindPopup(`<b>Start point</b><br/><span class="row-sub mono">Tracking began ${timeAgo(s.recorded_at)}</span>`);
         bounds.push([s.lat, s.lng]);
+      }
+
+      // Destination marker: only ever drawn from trip.dest_lat/dest_lng, an explicit
+      // coordinate pair set via the destination editor -- never guessed from place text.
+      if (trip && typeof trip.dest_lat === 'number' && typeof trip.dest_lng === 'number') {
+        tripDestMarker = L.marker([trip.dest_lat, trip.dest_lng], { icon: destIcon() })
+          .addTo(tripMap)
+          .bindPopup(`<b>Destination</b><br/><span class="row-sub">${escapeHtml(trip.destination)}</span>`);
+        bounds.push([trip.dest_lat, trip.dest_lng]);
       }
 
       data.locations.forEach((l) => {
@@ -382,6 +507,13 @@ socket.on('trip:location:update', (payload) => {
   if (member) member.is_sharing_location = true;
   renderTripMapMarkers();
   renderRiderList(currentTripMembers);
+});
+socket.on('trip:destination:update', (payload) => {
+  if (payload.trip_id !== currentTripId || !currentTrip) return;
+  currentTrip.dest_lat = payload.dest_lat;
+  currentTrip.dest_lng = payload.dest_lng;
+  renderDestinationEditor(currentTrip);
+  initTripMap(currentTripId, currentTrip);
 });
 socket.on('trip:member:joined', (payload) => {
   if (payload.trip_id === currentTripId) openTripDetail(currentTripId);

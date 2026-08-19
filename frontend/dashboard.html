@@ -154,7 +154,23 @@
           </div>
           <label>Description</label>
           <textarea id="trip-desc" placeholder="Route notes, meeting point, pace, etc."></textarea>
-          <button class="btn primary" type="submit">Create trip — you'll be the leader</button>
+
+          <details id="trip-dest-coords-details">
+            <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--blue);margin-bottom:10px;">
+              Add real destination coordinates (optional)
+            </summary>
+            <p class="row-sub" style="margin-top:0;">
+              Sets a real pin for the destination on the live map. Type coordinates in, or use your current location if you're already there. Leave blank to skip — the map will just show your start point and riders.
+            </p>
+            <div class="grid-2">
+              <div><label>Destination latitude</label><input id="trip-dest-lat" type="number" step="any" min="-90" max="90" placeholder="e.g. 8.5241" /></div>
+              <div><label>Destination longitude</label><input id="trip-dest-lng" type="number" step="any" min="-180" max="180" placeholder="e.g. 76.9366" /></div>
+            </div>
+            <button type="button" class="btn small ghost" id="trip-dest-use-location">Use my current location</button>
+            <div id="trip-dest-coords-error" class="error-msg hidden"></div>
+          </details>
+
+          <button class="btn primary" type="submit" style="margin-top:14px;">Create trip — you'll be the leader</button>
         </form>
       </div>
 
@@ -188,10 +204,33 @@
       <p id="trip-detail-desc" class="row-sub" style="margin:0 0 12px;"></p>
       <div id="trip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
 
+      <!-- Leader-only destination pin editor -- hidden entirely for non-leaders and once
+           a destination is already pinned (leader still gets a small "Edit" trigger then). -->
+      <div class="card hidden" id="trip-dest-editor-card" style="margin-bottom:16px;">
+        <div class="section-title">Pin the Real Destination (Optional)</div>
+        <p class="row-sub" style="margin-top:0;">
+          "<span id="trip-dest-editor-name"></span>" doesn't have real coordinates yet, so it isn't shown on the map.
+          Type them in, or use your current location if you're there now.
+        </p>
+        <div class="grid-2">
+          <div><label>Destination latitude</label><input id="trip-dest-editor-lat" type="number" step="any" min="-90" max="90" /></div>
+          <div><label>Destination longitude</label><input id="trip-dest-editor-lng" type="number" step="any" min="-180" max="180" /></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn small ghost" id="trip-dest-editor-use-location">Use my current location</button>
+          <button type="button" class="btn small primary" id="trip-dest-editor-save">Save destination pin</button>
+        </div>
+        <div id="trip-dest-editor-error" class="error-msg hidden"></div>
+      </div>
+      <button class="btn small ghost hidden" id="trip-dest-edit-trigger" style="margin-bottom:16px;">
+        <i data-lucide="map-pin" class="icon icon-sm"></i> Edit destination pin
+      </button>
+
       <div class="trip-live-map-wrap">
         <div id="trip-map" class="trip-live-map"></div>
         <div class="map-legend">
           <span><i class="legend-dot start"></i> Start</span>
+          <span><i class="legend-dot dest"></i> Destination</span>
           <span><i class="legend-dot rider"></i> Rider</span>
         </div>
       </div>
