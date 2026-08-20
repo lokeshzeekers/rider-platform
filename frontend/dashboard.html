@@ -226,13 +226,17 @@
         <i data-lucide="map-pin" class="icon icon-sm"></i> Edit destination pin
       </button>
 
-      <div class="trip-live-map-wrap">
+      <div class="trip-live-map-wrap" id="trip-map-wrap">
+        <button type="button" class="btn small ghost map-fullscreen-btn" id="trip-map-fullscreen-btn">
+          <i data-lucide="maximize" class="icon icon-sm"></i> Full Screen Map
+        </button>
         <div id="trip-map" class="trip-live-map"></div>
         <div class="map-legend">
           <span><i class="legend-dot start"></i> Start</span>
           <span><i class="legend-dot dest"></i> Destination</span>
           <span><i class="legend-dot rider"></i> Rider</span>
         </div>
+        <div class="map-empty-note hidden" id="trip-map-empty-note"></div>
       </div>
 
       <div class="card">

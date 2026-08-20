@@ -7,6 +7,7 @@ let currentTrip = null;
 let tripMap = null;
 let tripMarkers = {};
 let tripDestMarker = null;
+let tripRouteLine = null;
 let tripLocationsById = {};
 let tripLocationInterval = null;
 
@@ -228,6 +229,8 @@ function closeTripDetail() {
     tripMap = null;
   }
   tripDestMarker = null;
+  tripRouteLine = null;
+  exitMapFullscreen();
   document.getElementById('trip-dest-editor-card').classList.add('hidden');
   document.getElementById('trip-dest-edit-trigger').classList.add('hidden');
   const topbar = document.querySelector('.topbar');
@@ -237,6 +240,51 @@ function closeTripDetail() {
   loadTrips();
 }
 document.getElementById('trip-back-btn').addEventListener('click', closeTripDetail);
+
+// ===== Full screen map =====
+// A CSS-driven fixed overlay rather than the native Fullscreen API, since element-level
+// Fullscreen support is inconsistent on mobile Safari -- this works identically on every
+// platform. Toggled state only; never affects normal page scrolling otherwise.
+function setMapFullscreen(on) {
+  const wrap = document.getElementById('trip-map-wrap');
+  const btn = document.getElementById('trip-map-fullscreen-btn');
+  if (!wrap || !btn) return;
+  wrap.classList.toggle('map-fullscreen', on);
+  document.body.classList.toggle('map-fullscreen-open', on);
+  btn.innerHTML = on
+    ? '<i data-lucide="minimize" class="icon icon-sm"></i> Exit Full Screen'
+    : '<i data-lucide="maximize" class="icon icon-sm"></i> Full Screen Map';
+  if (window.lucide) lucide.createIcons();
+  // The container size just changed; Leaflet needs to re-measure after layout settles.
+  setTimeout(() => tripMap && tripMap.invalidateSize(), 200);
+}
+function exitMapFullscreen() {
+  const wrap = document.getElementById('trip-map-wrap');
+  if (wrap && wrap.classList.contains('map-fullscreen')) setMapFullscreen(false);
+}
+document.getElementById('trip-map-fullscreen-btn').addEventListener('click', () => {
+  const wrap = document.getElementById('trip-map-wrap');
+  setMapFullscreen(!wrap.classList.contains('map-fullscreen'));
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') exitMapFullscreen();
+});
+
+// ===== Missing start/destination handling (no fake markers, ever) =====
+function updateMapEmptyNote(hasStart, hasDest) {
+  const note = document.getElementById('trip-map-empty-note');
+  if (!note) return;
+  let text = '';
+  if (!hasStart && !hasDest) {
+    text = 'Start and destination pins aren\u2019t set for this trip yet.';
+  } else if (!hasStart) {
+    text = 'No start location recorded yet \u2014 share your location to begin tracking.';
+  } else if (!hasDest) {
+    text = 'Destination pin isn\u2019t set for this trip yet.';
+  }
+  note.textContent = text;
+  note.classList.toggle('hidden', text === '');
+}
 
 // ===== Destination pin editor (leader-only) =====
 // Trip-level start/destination are always free-text place names; dest_lat/dest_lng are a
@@ -430,6 +478,7 @@ function initTripMap(tripId, trip) {
   }
   tripMarkers = {};
   tripDestMarker = null;
+  tripRouteLine = null;
   tripLocationsById = {};
   tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -440,23 +489,41 @@ function initTripMap(tripId, trip) {
   Api.get(`/trips/${tripId}/locations`)
     .then((data) => {
       const bounds = [];
+      let startPoint = null;
+      let destPoint = null;
 
       if (data.route_start && typeof data.route_start.lat === 'number') {
         const s = data.route_start;
-        L.marker([s.lat, s.lng], { icon: startIcon() })
+        startPoint = [s.lat, s.lng];
+        L.marker(startPoint, { icon: startIcon() })
           .addTo(tripMap)
           .bindPopup(`<b>Start point</b><br/><span class="row-sub mono">Tracking began ${timeAgo(s.recorded_at)}</span>`);
-        bounds.push([s.lat, s.lng]);
+        bounds.push(startPoint);
       }
 
       // Destination marker: only ever drawn from trip.dest_lat/dest_lng, an explicit
       // coordinate pair set via the destination editor -- never guessed from place text.
       if (trip && typeof trip.dest_lat === 'number' && typeof trip.dest_lng === 'number') {
-        tripDestMarker = L.marker([trip.dest_lat, trip.dest_lng], { icon: destIcon() })
+        destPoint = [trip.dest_lat, trip.dest_lng];
+        tripDestMarker = L.marker(destPoint, { icon: destIcon() })
           .addTo(tripMap)
           .bindPopup(`<b>Destination</b><br/><span class="row-sub">${escapeHtml(trip.destination)}</span>`);
-        bounds.push([trip.dest_lat, trip.dest_lng]);
+        bounds.push(destPoint);
       }
+
+      // Direction line between the two real points -- a straight line, not a routed
+      // road path (we have no routing service), so it never implies invented geography.
+      if (startPoint && destPoint) {
+        tripRouteLine = L.polyline([startPoint, destPoint], {
+          color: '#7c3aed',
+          weight: 3,
+          opacity: 0.55,
+          dashArray: '2 10',
+          lineCap: 'round'
+        }).addTo(tripMap);
+      }
+
+      updateMapEmptyNote(!!startPoint, !!destPoint);
 
       data.locations.forEach((l) => {
         tripLocationsById[l.id] = { lat: l.lat, lng: l.lng, updated_at: l.updated_at };
