@@ -179,6 +179,26 @@ module.exports = function tripsRouter(io) {
     }
   });
 
+  // Leader-only: explicitly transition an upcoming trip to active. (Sharing location
+  // already auto-activates a trip as a safety net -- see POST /:id/location below -- but
+  // riders shouldn't have to rely on that indirect trigger to know the ride has begun.)
+  router.post('/:id/start', authRequired, async (req, res, next) => {
+    try {
+      const trip = await getTripInOrg(req.params.id, req.user.org_id);
+      if (!trip) return res.status(404).json({ error: 'Trip not found' });
+      if (!isLeader(trip, req.user.id)) return res.status(403).json({ error: 'Only the trip leader can start the trip' });
+      if (trip.status !== 'upcoming') return res.status(400).json({ error: `Trip is already ${trip.status}` });
+
+      await query(`UPDATE trips SET status='active' WHERE id=$1`, [trip.id]);
+      io.to(`trip:${trip.id}`).emit('trip:started', { trip_id: trip.id });
+      await postTripSystemMessage(trip, req.user, `${req.user.name} started the trip.`, 'trip_started');
+
+      res.json({ message: 'Trip started' });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post('/:id/invite', authRequired, async (req, res, next) => {
     try {
       const trip = await getTripInOrg(req.params.id, req.user.org_id);

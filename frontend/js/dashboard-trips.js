@@ -164,6 +164,32 @@ async function openTripDetail(tripId) {
     const actionsEl = document.getElementById('trip-detail-actions');
     actionsEl.innerHTML = '';
     if (data.trip.status !== 'completed' && data.trip.status !== 'cancelled') {
+      if (data.trip.status === 'upcoming') {
+        if (currentTripIsLeader) {
+          const startBtn = document.createElement('button');
+          startBtn.className = 'btn small primary';
+          startBtn.innerHTML = '<i data-lucide="play" class="icon icon-sm"></i> Start Trip';
+          startBtn.onclick = async () => {
+            startBtn.disabled = true;
+            try {
+              await Api.post(`/trips/${tripId}/start`);
+              openTripDetail(tripId);
+              loadTrips();
+            } catch (err) {
+              startBtn.disabled = false;
+              alert(err.message);
+            }
+          };
+          actionsEl.appendChild(startBtn);
+        } else {
+          const waitingNote = document.createElement('span');
+          waitingNote.className = 'row-sub';
+          waitingNote.style.alignSelf = 'center';
+          waitingNote.textContent = 'Waiting for the trip leader to start the trip.';
+          actionsEl.appendChild(waitingNote);
+        }
+      }
+
       const shareBtn = document.createElement('button');
       shareBtn.className = 'btn small primary';
       shareBtn.innerHTML = '<i data-lucide="navigation" class="icon icon-sm"></i> Share my location on this trip';
@@ -820,6 +846,10 @@ socket.on('trip:member:joined', (payload) => {
   if (payload.trip_id === currentTripId) openTripDetail(currentTripId);
 });
 socket.on('trip:completed', (payload) => {
+  if (payload.trip_id === currentTripId) openTripDetail(currentTripId);
+  loadTrips();
+});
+socket.on('trip:started', (payload) => {
   if (payload.trip_id === currentTripId) openTripDetail(currentTripId);
   loadTrips();
 });
