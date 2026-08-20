@@ -59,21 +59,6 @@ document.getElementById('trip-form').addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('trip-dest-use-location').addEventListener('click', () => {
-  if (!navigator.geolocation) {
-    alert('Your browser does not support geolocation. Enter coordinates manually.');
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      document.getElementById('trip-dest-lat').value = pos.coords.latitude.toFixed(6);
-      document.getElementById('trip-dest-lng').value = pos.coords.longitude.toFixed(6);
-    },
-    () => alert('Could not get your current location. Enter coordinates manually.'),
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
-});
-
 document.querySelectorAll('[data-trip-tab]').forEach((btn) => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-trip-tab]').forEach((b) => b.classList.remove('active'));
@@ -174,6 +159,7 @@ async function openTripDetail(tripId) {
     document.getElementById('trip-detail-desc').textContent = data.trip.description || '';
 
     renderDestinationEditor(data.trip);
+    renderStartEditor(data.trip);
 
     const actionsEl = document.getElementById('trip-detail-actions');
     actionsEl.innerHTML = '';
@@ -183,6 +169,28 @@ async function openTripDetail(tripId) {
       shareBtn.innerHTML = '<i data-lucide="navigation" class="icon icon-sm"></i> Share my location on this trip';
       shareBtn.onclick = () => startTripLocationSharing(tripId);
       actionsEl.appendChild(shareBtn);
+
+      const myMembership = data.members.find((m) => m.id === ME.id);
+      const reachedBtn = document.createElement('button');
+      if (myMembership && myMembership.reached_at) {
+        reachedBtn.className = 'btn small ghost';
+        reachedBtn.disabled = true;
+        reachedBtn.innerHTML = '<i data-lucide="flag" class="icon icon-sm"></i> You\u2019ve reached the destination';
+      } else {
+        reachedBtn.className = 'btn small';
+        reachedBtn.innerHTML = '<i data-lucide="flag" class="icon icon-sm"></i> Mark as reached';
+        reachedBtn.onclick = async () => {
+          reachedBtn.disabled = true;
+          try {
+            await Api.post(`/trips/${tripId}/reached`);
+            openTripDetail(tripId);
+          } catch (err) {
+            reachedBtn.disabled = false;
+            alert(err.message);
+          }
+        };
+      }
+      actionsEl.appendChild(reachedBtn);
 
       if (currentTripIsLeader) {
         const completeBtn = document.createElement('button');
@@ -243,6 +251,10 @@ function leaveTripView() {
   const destTrigger = document.getElementById('trip-dest-edit-trigger');
   if (destCard) destCard.classList.add('hidden');
   if (destTrigger) destTrigger.classList.add('hidden');
+  const startCard = document.getElementById('trip-start-editor-card');
+  const startTrigger = document.getElementById('trip-start-edit-trigger');
+  if (startCard) startCard.classList.add('hidden');
+  if (startTrigger) startTrigger.classList.add('hidden');
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.classList.remove('hidden');
   if (location.hash.startsWith('#trip/')) {
@@ -268,8 +280,8 @@ function setMapFullscreen(on) {
   wrap.classList.toggle('map-fullscreen', on);
   document.body.classList.toggle('map-fullscreen-open', on);
   btn.innerHTML = on
-    ? '<i data-lucide="minimize" class="icon icon-sm"></i> Exit Full Screen'
-    : '<i data-lucide="maximize" class="icon icon-sm"></i> Full Screen Map';
+    ? '<i data-lucide="minimize" class="icon icon-sm"></i> <span class="btn-label">Exit Full Screen</span>'
+    : '<i data-lucide="maximize" class="icon icon-sm"></i> <span class="btn-label">Full Screen Map</span>';
   if (window.lucide) lucide.createIcons();
   // The container size just changed; Leaflet needs to re-measure after layout settles.
   setTimeout(() => tripMap && tripMap.invalidateSize(), 200);
@@ -286,8 +298,24 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') exitMapFullscreen();
 });
 
+// ===== Need to Stop =====
+document.getElementById('trip-need-stop-btn').addEventListener('click', async () => {
+  if (!currentTripId) return;
+  if (!confirm('Alert the rest of the group that you need to stop the ride?')) return;
+  const btn = document.getElementById('trip-need-stop-btn');
+  btn.disabled = true;
+  try {
+    await Api.post(`/trips/${currentTripId}/need-stop`);
+    alert('Alert sent to the group.');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ===== Missing start/destination handling (no fake markers, ever) =====
-function updateMapEmptyNote(hasStart, hasDest) {
+function updateMapEmptyNote(hasStart, hasDest, routeFallback) {
   const note = document.getElementById('trip-map-empty-note');
   if (!note) return;
   let text = '';
@@ -297,9 +325,182 @@ function updateMapEmptyNote(hasStart, hasDest) {
     text = 'No start location recorded yet \u2014 share your location to begin tracking.';
   } else if (!hasDest) {
     text = 'Destination pin isn\u2019t set for this trip yet.';
+  } else if (routeFallback) {
+    text = 'Showing a straight line between start and destination \u2014 live road routing is temporarily unavailable.';
   }
   note.textContent = text;
   note.classList.toggle('hidden', text === '');
+}
+
+// ===== Real road route (OSRM public routing server) =====
+// router.project-osrm.org is OSRM's free public demo instance: no API key required, but
+// it's explicitly documented by the OSRM project as a demo service, not an SLA-backed
+// production endpoint -- it can be slow, rate-limited, or briefly unavailable. That's why
+// this always has a graceful fallback to the straight direction line rather than failing
+// visibly. For guaranteed uptime at real production volume, a self-hosted OSRM instance
+// or a paid provider (Mapbox/Google Directions) would be the next step.
+const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
+
+async function fetchRoadRoute(startPoint, destPoint) {
+  const url = `${OSRM_BASE}/${startPoint[1]},${startPoint[0]};${destPoint[1]},${destPoint[0]}?overview=full&geometries=geojson&steps=true`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== 'Ok' || !data.routes || !data.routes[0]) return null;
+    const route = data.routes[0];
+    const latlngs = route.geometry.coordinates.map((c) => [c[1], c[0]]);
+    const steps = (route.legs && route.legs[0] ? route.legs[0].steps : []) || [];
+    return { latlngs, steps, distanceKm: route.distance / 1000, durationMin: route.duration / 60 };
+  } catch (err) {
+    clearTimeout(timeout);
+    console.warn('Road route unavailable, falling back to straight line:', err.message);
+    return null;
+  }
+}
+
+function maneuverText(step) {
+  const name = step.name && step.name.trim() ? step.name.trim() : 'the road';
+  const m = step.maneuver || {};
+  const mod = m.modifier || '';
+  switch (m.type) {
+    case 'depart':
+      return step.name ? `Head out on ${name}` : 'Head out';
+    case 'arrive':
+      return 'Arrive at the destination';
+    case 'turn':
+    case 'end of road':
+      return mod === 'straight' ? `Continue straight onto ${name}` : `Turn ${mod || ''} onto ${name}`.replace('  ', ' ');
+    case 'roundabout':
+    case 'rotary':
+      return `At the roundabout, take the exit onto ${name}`;
+    case 'merge':
+      return `Merge onto ${name}`;
+    case 'fork':
+      return `Keep ${mod || 'straight'} at the fork onto ${name}`;
+    default:
+      return `Continue onto ${name}`;
+  }
+}
+
+function renderDirections(routeResult) {
+  const card = document.getElementById('trip-directions-card');
+  const list = document.getElementById('trip-directions-list');
+  const summary = document.getElementById('trip-directions-summary');
+  if (!card || !list || !summary) return;
+  if (!routeResult || !routeResult.steps || routeResult.steps.length === 0) {
+    card.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+  summary.textContent = `${routeResult.distanceKm.toFixed(1)} km \u00B7 ~${Math.round(routeResult.durationMin)} min by road`;
+  list.innerHTML = routeResult.steps
+    .map((step) => {
+      const distText = step.distance >= 1000 ? `${(step.distance / 1000).toFixed(1)} km` : `${Math.round(step.distance)} m`;
+      return `<li style="margin-bottom:6px;"><span class="row-title" style="font-weight:500;">${escapeHtml(maneuverText(step))}</span> <span class="row-sub">(${distText})</span></li>`;
+    })
+    .join('');
+  card.classList.remove('hidden');
+}
+
+function initTripMap(tripId, trip) {
+  const el = document.getElementById('trip-map');
+  el.innerHTML = '';
+  if (tripMap) {
+    tripMap.remove();
+    tripMap = null;
+  }
+  tripMarkers = {};
+  tripDestMarker = null;
+  tripRouteLine = null;
+  tripLocationsById = {};
+  renderDirections(null);
+  tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(tripMap);
+
+  Api.get(`/trips/${tripId}/locations`)
+    .then(async (data) => {
+      const bounds = [];
+      let startPoint = null;
+      let destPoint = null;
+
+      // Prefer the leader-pinned start point (as accurate/intentional as the destination
+      // pin); fall back to the earliest real GPS fix recorded for the trip, distinctly
+      // labeled, only when no pin has been set.
+      if (trip && typeof trip.start_lat === 'number' && typeof trip.start_lng === 'number') {
+        startPoint = [trip.start_lat, trip.start_lng];
+        L.marker(startPoint, { icon: startIcon() })
+          .addTo(tripMap)
+          .bindPopup(`<b>Start point</b><br/><span class="row-sub">${escapeHtml(trip.start_point)}</span>`);
+        bounds.push(startPoint);
+      } else if (data.route_start && typeof data.route_start.lat === 'number') {
+        const s = data.route_start;
+        startPoint = [s.lat, s.lng];
+        L.marker(startPoint, { icon: startIcon() })
+          .addTo(tripMap)
+          .bindPopup(`<b>Tracking began here</b><br/><span class="row-sub mono">${timeAgo(s.recorded_at)}</span><br/><span class="row-sub">No start pin set \u2014 this is the first live location recorded.</span>`);
+        bounds.push(startPoint);
+      }
+
+      // Destination marker: only ever drawn from trip.dest_lat/dest_lng, an explicit
+      // coordinate pair set via the destination editor -- never guessed from place text.
+      if (trip && typeof trip.dest_lat === 'number' && typeof trip.dest_lng === 'number') {
+        destPoint = [trip.dest_lat, trip.dest_lng];
+        tripDestMarker = L.marker(destPoint, { icon: destIcon() })
+          .addTo(tripMap)
+          .bindPopup(`<b>Destination</b><br/><span class="row-sub">${escapeHtml(trip.destination)}</span>`);
+        bounds.push(destPoint);
+      }
+
+      // Real road route between the two points, when both exist. Falls back to a
+      // straight direction line if the routing service is unreachable/slow -- the
+      // fallback is still built from the same two real coordinates, never invented ones.
+      let routeFallback = false;
+      if (startPoint && destPoint) {
+        const routeResult = await fetchRoadRoute(startPoint, destPoint);
+        if (routeResult) {
+          tripRouteLine = L.polyline(routeResult.latlngs, { color: '#7c3aed', weight: 4, opacity: 0.75 }).addTo(tripMap);
+          routeResult.latlngs.forEach((p) => bounds.push(p));
+          renderDirections(routeResult);
+        } else {
+          routeFallback = true;
+          tripRouteLine = L.polyline([startPoint, destPoint], {
+            color: '#7c3aed',
+            weight: 3,
+            opacity: 0.55,
+            dashArray: '2 10',
+            lineCap: 'round'
+          }).addTo(tripMap);
+          renderDirections(null);
+        }
+      } else {
+        renderDirections(null);
+      }
+
+      updateMapEmptyNote(!!startPoint, !!destPoint, routeFallback);
+
+      data.locations.forEach((l) => {
+        tripLocationsById[l.id] = { lat: l.lat, lng: l.lng, updated_at: l.updated_at };
+        bounds.push([l.lat, l.lng]);
+      });
+
+      renderTripMapMarkers();
+      renderRiderList(currentTripMembers);
+
+      if (bounds.length > 0) {
+        tripMap.fitBounds(bounds, { maxZoom: 14, padding: [50, 50] });
+      }
+      // Leaflet sizes itself from the container's dimensions at creation time; since the
+      // section may still be mid-transition into view, re-measure shortly after.
+      setTimeout(() => tripMap && tripMap.invalidateSize(), 150);
+    })
+    .catch((err) => console.error(err));
 }
 
 // ===== Destination pin editor (leader-only) =====
@@ -364,6 +565,76 @@ document.getElementById('trip-dest-editor-save').addEventListener('click', async
   if (!currentTripId) return;
   try {
     await Api.patch(`/trips/${currentTripId}/destination`, { dest_lat: parseFloat(latRaw), dest_lng: parseFloat(lngRaw) });
+    await openTripDetail(currentTripId);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+});
+
+// ===== Start point pin editor (leader-only) -- mirrors the destination editor exactly.
+// "Use my current location" makes sense HERE (you're presumably about to depart from
+// where you're standing), unlike at trip-creation time where you aren't at either point
+// yet -- that's why the create-trip form only offers manual entry.
+function renderStartEditor(trip) {
+  const card = document.getElementById('trip-start-editor-card');
+  const trigger = document.getElementById('trip-start-edit-trigger');
+  const hasStart = trip.start_lat != null && trip.start_lng != null;
+
+  if (!currentTripIsLeader) {
+    card.classList.add('hidden');
+    trigger.classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('trip-start-editor-name').textContent = trip.start_point;
+  document.getElementById('trip-start-editor-lat').value = hasStart ? trip.start_lat : '';
+  document.getElementById('trip-start-editor-lng').value = hasStart ? trip.start_lng : '';
+  document.getElementById('trip-start-editor-error').classList.add('hidden');
+
+  if (hasStart) {
+    card.classList.add('hidden');
+    trigger.classList.remove('hidden');
+  } else {
+    card.classList.remove('hidden');
+    trigger.classList.add('hidden');
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+document.getElementById('trip-start-edit-trigger').addEventListener('click', () => {
+  document.getElementById('trip-start-editor-card').classList.remove('hidden');
+  document.getElementById('trip-start-edit-trigger').classList.add('hidden');
+});
+
+document.getElementById('trip-start-editor-use-location').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert('Your browser does not support geolocation. Enter coordinates manually.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      document.getElementById('trip-start-editor-lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('trip-start-editor-lng').value = pos.coords.longitude.toFixed(6);
+    },
+    () => alert('Could not get your current location. Enter coordinates manually.'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+document.getElementById('trip-start-editor-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('trip-start-editor-error');
+  errEl.classList.add('hidden');
+  const latRaw = document.getElementById('trip-start-editor-lat').value.trim();
+  const lngRaw = document.getElementById('trip-start-editor-lng').value.trim();
+  if (latRaw === '' || lngRaw === '') {
+    errEl.textContent = 'Both latitude and longitude are required to pin a start point.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!currentTripId) return;
+  try {
+    await Api.patch(`/trips/${currentTripId}/start-point`, { start_lat: parseFloat(latRaw), start_lng: parseFloat(lngRaw) });
     await openTripDetail(currentTripId);
   } catch (err) {
     errEl.textContent = err.message;
@@ -459,6 +730,9 @@ function renderRiderList(members) {
             const isLive = !!m.is_sharing_location;
             const dist = distanceFromMeKm(m.id);
             const distText = m.id === ME.id ? 'You' : dist != null ? `${dist.toFixed(1)} km away` : '—';
+            const statusBadge = m.reached_at
+              ? '<span class="live-badge" style="color:var(--green);"><i data-lucide="flag" class="icon icon-sm"></i>Reached</span>'
+              : `<span class="live-badge ${isLive ? 'is-live' : 'is-offline'}"><span class="pulse-dot ${isLive ? '' : 'offline'}" style="width:7px;height:7px;"></span>${isLive ? 'Live' : 'Offline'}</span>`;
             return `
       <div class="rider-row" data-rider-id="${m.id}">
         ${avatarHtml(m)}
@@ -467,12 +741,13 @@ function renderRiderList(members) {
           <div class="row-sub">@${escapeHtml(m.username)} · Rider ID: ${m.id.slice(0, 8).toUpperCase()}</div>
         </div>
         <div class="rider-status-block">
-          <span class="live-badge ${isLive ? 'is-live' : 'is-offline'}"><span class="pulse-dot ${isLive ? '' : 'offline'}" style="width:7px;height:7px;"></span>${isLive ? 'Live' : 'Offline'}</span>
+          ${statusBadge}
           <span class="rider-distance">${distText}</span>
         </div>
       </div>`;
           })
           .join('');
+  if (window.lucide) lucide.createIcons();
 }
 
 document.getElementById('trip-members-list').addEventListener('click', (e) => {
@@ -484,80 +759,6 @@ document.getElementById('trip-members-list').addEventListener('click', (e) => {
     marker.openPopup();
   }
 });
-
-function initTripMap(tripId, trip) {
-  const el = document.getElementById('trip-map');
-  el.innerHTML = '';
-  if (tripMap) {
-    tripMap.remove();
-    tripMap = null;
-  }
-  tripMarkers = {};
-  tripDestMarker = null;
-  tripRouteLine = null;
-  tripLocationsById = {};
-  tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19
-  }).addTo(tripMap);
-
-  Api.get(`/trips/${tripId}/locations`)
-    .then((data) => {
-      const bounds = [];
-      let startPoint = null;
-      let destPoint = null;
-
-      if (data.route_start && typeof data.route_start.lat === 'number') {
-        const s = data.route_start;
-        startPoint = [s.lat, s.lng];
-        L.marker(startPoint, { icon: startIcon() })
-          .addTo(tripMap)
-          .bindPopup(`<b>Start point</b><br/><span class="row-sub mono">Tracking began ${timeAgo(s.recorded_at)}</span>`);
-        bounds.push(startPoint);
-      }
-
-      // Destination marker: only ever drawn from trip.dest_lat/dest_lng, an explicit
-      // coordinate pair set via the destination editor -- never guessed from place text.
-      if (trip && typeof trip.dest_lat === 'number' && typeof trip.dest_lng === 'number') {
-        destPoint = [trip.dest_lat, trip.dest_lng];
-        tripDestMarker = L.marker(destPoint, { icon: destIcon() })
-          .addTo(tripMap)
-          .bindPopup(`<b>Destination</b><br/><span class="row-sub">${escapeHtml(trip.destination)}</span>`);
-        bounds.push(destPoint);
-      }
-
-      // Direction line between the two real points -- a straight line, not a routed
-      // road path (we have no routing service), so it never implies invented geography.
-      if (startPoint && destPoint) {
-        tripRouteLine = L.polyline([startPoint, destPoint], {
-          color: '#7c3aed',
-          weight: 3,
-          opacity: 0.55,
-          dashArray: '2 10',
-          lineCap: 'round'
-        }).addTo(tripMap);
-      }
-
-      updateMapEmptyNote(!!startPoint, !!destPoint);
-
-      data.locations.forEach((l) => {
-        tripLocationsById[l.id] = { lat: l.lat, lng: l.lng, updated_at: l.updated_at };
-        bounds.push([l.lat, l.lng]);
-      });
-
-      renderTripMapMarkers();
-      renderRiderList(currentTripMembers);
-
-      if (bounds.length > 0) {
-        tripMap.fitBounds(bounds, { maxZoom: 14, padding: [50, 50] });
-      }
-      // Leaflet sizes itself from the container's dimensions at creation time; since the
-      // section may still be mid-transition into view, re-measure shortly after.
-      setTimeout(() => tripMap && tripMap.invalidateSize(), 150);
-    })
-    .catch((err) => console.error(err));
-}
 
 function startTripLocationSharing(tripId) {
   if (tripLocationInterval) clearInterval(tripLocationInterval);
@@ -591,11 +792,28 @@ socket.on('trip:location:update', (payload) => {
   renderTripMapMarkers();
   renderRiderList(currentTripMembers);
 });
+socket.on('trip:member:reached', (payload) => {
+  if (payload.trip_id !== currentTripId) return;
+  const member = currentTripMembers.find((m) => m.id === payload.user_id);
+  if (member) member.reached_at = payload.reached_at;
+  renderRiderList(currentTripMembers);
+});
+socket.on('trip:need-stop', (payload) => {
+  if (payload.trip_id !== currentTripId || payload.user_id === ME.id) return;
+  alert(`\u26A0\uFE0F ${payload.name} needs to stop the ride.`);
+});
 socket.on('trip:destination:update', (payload) => {
   if (payload.trip_id !== currentTripId || !currentTrip) return;
   currentTrip.dest_lat = payload.dest_lat;
   currentTrip.dest_lng = payload.dest_lng;
   renderDestinationEditor(currentTrip);
+  initTripMap(currentTripId, currentTrip);
+});
+socket.on('trip:start-point:update', (payload) => {
+  if (payload.trip_id !== currentTripId || !currentTrip) return;
+  currentTrip.start_lat = payload.start_lat;
+  currentTrip.start_lng = payload.start_lng;
+  renderStartEditor(currentTrip);
   initTripMap(currentTripId, currentTrip);
 });
 socket.on('trip:member:joined', (payload) => {

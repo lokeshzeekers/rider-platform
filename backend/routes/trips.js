@@ -15,39 +15,49 @@ async function getTripInOrg(tripId, orgId) {
   return r.rows[0] || null;
 }
 
+// Shared by trip creation and both the start/destination pin editors: coordinates are
+// only ever accepted as an explicit numeric pair (typed in, or the device's own
+// geolocation) supplied by the client -- never derived/geocoded from place-name text.
+// Returns { ok:true, lat, lng } | { ok:true, lat:null, lng:null } (both omitted/cleared)
+// | { ok:false, error }.
+function validateCoordPair(lat, lng, { allowClear = false } = {}) {
+  const latProvided = lat !== undefined && lat !== null;
+  const lngProvided = lng !== undefined && lng !== null;
+  if (!latProvided && !lngProvided) {
+    return { ok: true, lat: null, lng: null };
+  }
+  if (allowClear && lat === null && lng === null) {
+    return { ok: true, lat: null, lng: null };
+  }
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return { ok: false, error: 'Both latitude and longitude must be numbers if either is provided' };
+  }
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return { ok: false, error: 'Latitude/longitude out of range' };
+  }
+  return { ok: true, lat, lng };
+}
+
 module.exports = function tripsRouter(io) {
   const router = express.Router();
 
   router.post('/', authRequired, async (req, res, next) => {
     try {
-      const { name, start_point, destination, trip_date, trip_time, description, invite_user_ids, dest_lat, dest_lng } = req.body || {};
+      const { name, start_point, destination, trip_date, trip_time, description, invite_user_ids, dest_lat, dest_lng, start_lat, start_lng } = req.body || {};
       if (!name || !start_point || !destination || !trip_date || !trip_time) {
         return res.status(400).json({ error: 'name, start_point, destination, trip_date and trip_time are required' });
       }
 
-      // Destination coordinates are optional, but only ever accepted as an explicit pair
-      // of real numbers supplied by the client (typed in, or the device's own geolocation)
-      // -- never derived/geocoded from the destination text.
-      let destLatVal = null;
-      let destLngVal = null;
-      const destLatProvided = dest_lat !== undefined && dest_lat !== null;
-      const destLngProvided = dest_lng !== undefined && dest_lng !== null;
-      if (destLatProvided || destLngProvided) {
-        if (typeof dest_lat !== 'number' || typeof dest_lng !== 'number') {
-          return res.status(400).json({ error: 'dest_lat and dest_lng must both be numbers if either is provided' });
-        }
-        if (dest_lat < -90 || dest_lat > 90 || dest_lng < -180 || dest_lng > 180) {
-          return res.status(400).json({ error: 'dest_lat/dest_lng out of range' });
-        }
-        destLatVal = dest_lat;
-        destLngVal = dest_lng;
-      }
+      const destCoords = validateCoordPair(dest_lat, dest_lng);
+      if (!destCoords.ok) return res.status(400).json({ error: destCoords.error });
+      const startCoords = validateCoordPair(start_lat, start_lng);
+      if (!startCoords.ok) return res.status(400).json({ error: startCoords.error });
 
       const trip = await withTransaction(async (client) => {
         const ins = await client.query(
-          `INSERT INTO trips (org_id, name, start_point, destination, trip_date, trip_time, description, leader_id, dest_lat, dest_lng)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-          [req.user.org_id, name, start_point, destination, trip_date, trip_time, description || '', req.user.id, destLatVal, destLngVal]
+          `INSERT INTO trips (org_id, name, start_point, destination, trip_date, trip_time, description, leader_id, dest_lat, dest_lng, start_lat, start_lng)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+          [req.user.org_id, name, start_point, destination, trip_date, trip_time, description || '', req.user.id, destCoords.lat, destCoords.lng, startCoords.lat, startCoords.lng]
         );
         const t = ins.rows[0];
         await client.query('INSERT INTO trip_members (trip_id, user_id) VALUES ($1, $2)', [t.id, req.user.id]);
@@ -108,7 +118,7 @@ module.exports = function tripsRouter(io) {
       if (!(await isMember(trip.id, req.user.id))) return res.status(403).json({ error: 'Not a member of this trip' });
 
       const members = await query(
-        `SELECT u.id, u.username, u.name, u.profile_pic_path, tm.is_sharing_location, tm.joined_at
+        `SELECT u.id, u.username, u.name, u.profile_pic_path, tm.is_sharing_location, tm.joined_at, tm.reached_at
          FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1`,
         [trip.id]
       );
@@ -131,8 +141,6 @@ module.exports = function tripsRouter(io) {
   });
 
   // Leader-only: set, update, or clear the trip's real destination coordinates.
-  // Always an explicit numeric pair (or null,null to clear) supplied by the client --
-  // never derived/geocoded from the destination place-name text.
   router.patch('/:id/destination', authRequired, async (req, res, next) => {
     try {
       const trip = await getTripInOrg(req.params.id, req.user.org_id);
@@ -140,21 +148,31 @@ module.exports = function tripsRouter(io) {
       if (!isLeader(trip, req.user.id)) return res.status(403).json({ error: 'Only the trip leader can set destination coordinates' });
 
       const { dest_lat, dest_lng } = req.body || {};
-      const clearing = dest_lat === null && dest_lng === null;
-      const setting = typeof dest_lat === 'number' && typeof dest_lng === 'number';
-      if (!clearing && !setting) {
-        return res.status(400).json({ error: 'dest_lat and dest_lng must both be numbers, or both null to clear' });
-      }
-      if (setting && (dest_lat < -90 || dest_lat > 90 || dest_lng < -180 || dest_lng > 180)) {
-        return res.status(400).json({ error: 'dest_lat/dest_lng out of range' });
-      }
+      const coords = validateCoordPair(dest_lat, dest_lng, { allowClear: true });
+      if (!coords.ok) return res.status(400).json({ error: coords.error });
 
-      const r = await query('UPDATE trips SET dest_lat = $1, dest_lng = $2 WHERE id = $3 RETURNING *', [
-        clearing ? null : dest_lat,
-        clearing ? null : dest_lng,
-        trip.id
-      ]);
+      const r = await query('UPDATE trips SET dest_lat = $1, dest_lng = $2 WHERE id = $3 RETURNING *', [coords.lat, coords.lng, trip.id]);
       io.to(`trip:${trip.id}`).emit('trip:destination:update', { trip_id: trip.id, dest_lat: r.rows[0].dest_lat, dest_lng: r.rows[0].dest_lng });
+      res.json({ trip: r.rows[0] });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Leader-only: set, update, or clear the trip's real start coordinates. Symmetric to
+  // the destination endpoint above.
+  router.patch('/:id/start-point', authRequired, async (req, res, next) => {
+    try {
+      const trip = await getTripInOrg(req.params.id, req.user.org_id);
+      if (!trip) return res.status(404).json({ error: 'Trip not found' });
+      if (!isLeader(trip, req.user.id)) return res.status(403).json({ error: 'Only the trip leader can set the start point' });
+
+      const { start_lat, start_lng } = req.body || {};
+      const coords = validateCoordPair(start_lat, start_lng, { allowClear: true });
+      if (!coords.ok) return res.status(400).json({ error: coords.error });
+
+      const r = await query('UPDATE trips SET start_lat = $1, start_lng = $2 WHERE id = $3 RETURNING *', [coords.lat, coords.lng, trip.id]);
+      io.to(`trip:${trip.id}`).emit('trip:start-point:update', { trip_id: trip.id, start_lat: r.rows[0].start_lat, start_lng: r.rows[0].start_lng });
       res.json({ trip: r.rows[0] });
     } catch (err) {
       next(err);
@@ -310,6 +328,63 @@ module.exports = function tripsRouter(io) {
 
       io.to(`trip:${trip.id}`).emit('trip:chat:message', { ...message, username: req.user.username, name: req.user.name });
       res.status(201).json({ message });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Shared by the two rider-status actions below: post a system-style trip chat message
+  // (attributed to the acting rider) and notify every other member via the existing
+  // notification pipeline (createNotification + the 'notification:new' socket event the
+  // frontend already listens for) -- no new delivery mechanism, reuses what's working.
+  async function postTripSystemMessage(trip, actingUser, content, notifType) {
+    const ins = await query('INSERT INTO trip_messages (trip_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [trip.id, actingUser.id, content]);
+    const message = ins.rows[0];
+    io.to(`trip:${trip.id}`).emit('trip:chat:message', { ...message, username: actingUser.username, name: actingUser.name });
+
+    const membersRes = await query('SELECT user_id FROM trip_members WHERE trip_id = $1 AND user_id != $2', [trip.id, actingUser.id]);
+    for (const { user_id } of membersRes.rows) {
+      const notif = await createNotification(trip.org_id, user_id, notifType, content, trip.id);
+      io.to(`user:${user_id}`).emit('notification:new', notif);
+    }
+    return message;
+  }
+
+  // Any member can mark themselves as having reached the destination -- independent of
+  // the leader's trip-wide "completed" status below.
+  router.post('/:id/reached', authRequired, async (req, res, next) => {
+    try {
+      const trip = await getTripInOrg(req.params.id, req.user.org_id);
+      if (!trip) return res.status(404).json({ error: 'Trip not found' });
+      if (!(await isMember(trip.id, req.user.id))) return res.status(403).json({ error: 'Not a member of this trip' });
+
+      const r = await query(
+        'UPDATE trip_members SET reached_at = now() WHERE trip_id = $1 AND user_id = $2 AND reached_at IS NULL RETURNING reached_at',
+        [trip.id, req.user.id]
+      );
+      if (r.rows.length === 0) {
+        const already = await query('SELECT reached_at FROM trip_members WHERE trip_id = $1 AND user_id = $2', [trip.id, req.user.id]);
+        return res.json({ reached_at: already.rows[0] ? already.rows[0].reached_at : null });
+      }
+
+      io.to(`trip:${trip.id}`).emit('trip:member:reached', { trip_id: trip.id, user_id: req.user.id, reached_at: r.rows[0].reached_at });
+      await postTripSystemMessage(trip, req.user, `${req.user.name} has reached the destination.`, 'trip_reached');
+      res.json({ reached_at: r.rows[0].reached_at });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Any member can send a "need to stop" alert to the rest of the group mid-ride.
+  router.post('/:id/need-stop', authRequired, async (req, res, next) => {
+    try {
+      const trip = await getTripInOrg(req.params.id, req.user.org_id);
+      if (!trip) return res.status(404).json({ error: 'Trip not found' });
+      if (!(await isMember(trip.id, req.user.id))) return res.status(403).json({ error: 'Not a member of this trip' });
+
+      io.to(`trip:${trip.id}`).emit('trip:need-stop', { trip_id: trip.id, user_id: req.user.id, name: req.user.name, at: new Date().toISOString() });
+      await postTripSystemMessage(trip, req.user, `${req.user.name} needs to stop the ride.`, 'trip_need_stop');
+      res.status(201).json({ message: 'Alert sent to the group.' });
     } catch (err) {
       next(err);
     }

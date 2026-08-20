@@ -437,15 +437,40 @@ body.map-fullscreen-open { overflow: hidden; }
   background: var(--panel) !important;
   box-shadow: var(--shadow-sm);
 }
+.map-need-stop-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
+  box-shadow: var(--shadow-sm);
+}
+.trip-live-map-wrap.map-fullscreen .map-need-stop-btn {
+  top: calc(10px + env(safe-area-inset-top, 0));
+  left: calc(10px + env(safe-area-inset-left, 0));
+}
+/* Collapse both top map buttons to icon-only below ~420px so they can never overlap
+   each other in the narrow strip above the map (Need to Stop stays left, Full Screen
+   Map stays right, at every width down to 320px). */
+@media (max-width: 420px) {
+  .map-need-stop-btn .btn-label,
+  .map-fullscreen-btn .btn-label {
+    display: none;
+  }
+  .map-need-stop-btn,
+  .map-fullscreen-btn {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+}
 .trip-live-map-wrap.map-fullscreen .map-fullscreen-btn {
   top: calc(10px + env(safe-area-inset-top, 0));
   right: calc(10px + env(safe-area-inset-right, 0));
 }
 .map-empty-note {
   position: absolute;
-  top: 10px;
+  top: 54px;
   left: 10px;
-  right: 120px;
+  right: 10px;
   z-index: 5;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -454,9 +479,6 @@ body.map-fullscreen-open { overflow: hidden; }
   font-size: 12px;
   color: var(--text-dim);
   box-shadow: var(--shadow-sm);
-}
-@media (max-width: 500px) {
-  .map-empty-note { right: 10px; top: 54px; }
 }
 .map-legend {
   position: absolute;

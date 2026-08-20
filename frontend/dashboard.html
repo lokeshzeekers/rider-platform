@@ -14,7 +14,6 @@
   <div class="brand">
     <span class="brand-mark" aria-hidden="true"><i data-lucide="navigation"></i></span>
     RideX
-    <span class="pulse-dot offline" id="my-status-dot-mobile" style="margin-left:8px;"></span>
   </div>
 </div>
 
@@ -160,13 +159,12 @@
               Add real destination coordinates (optional)
             </summary>
             <p class="row-sub" style="margin-top:0;">
-              Sets a real pin for the destination on the live map. Type coordinates in, or use your current location if you're already there. Leave blank to skip — the map will just show your start point and riders.
+              Sets a real pin for the destination on the live map. Type coordinates in if you already know them — or skip this and pin it later from inside the trip once you're actually there.
             </p>
             <div class="grid-2">
               <div><label>Destination latitude</label><input id="trip-dest-lat" type="number" step="any" min="-90" max="90" placeholder="e.g. 8.5241" /></div>
               <div><label>Destination longitude</label><input id="trip-dest-lng" type="number" step="any" min="-180" max="180" placeholder="e.g. 76.9366" /></div>
             </div>
-            <button type="button" class="btn small ghost" id="trip-dest-use-location">Use my current location</button>
             <div id="trip-dest-coords-error" class="error-msg hidden"></div>
           </details>
 
@@ -204,6 +202,26 @@
       <p id="trip-detail-desc" class="row-sub" style="margin:0 0 12px;"></p>
       <div id="trip-detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
 
+      <!-- Leader-only start point pin editor -- mirrors the destination editor exactly. -->
+      <div class="card hidden" id="trip-start-editor-card" style="margin-bottom:16px;">
+        <div class="section-title">Pin the Real Start Point (Optional)</div>
+        <p class="row-sub" style="margin-top:0;">
+          "<span id="trip-start-editor-name"></span>" doesn't have real coordinates yet. Type them in, or use your current location if you're there now (about to depart).
+        </p>
+        <div class="grid-2">
+          <div><label>Start latitude</label><input id="trip-start-editor-lat" type="number" step="any" min="-90" max="90" /></div>
+          <div><label>Start longitude</label><input id="trip-start-editor-lng" type="number" step="any" min="-180" max="180" /></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn small ghost" id="trip-start-editor-use-location">Use my current location</button>
+          <button type="button" class="btn small primary" id="trip-start-editor-save">Save start pin</button>
+        </div>
+        <div id="trip-start-editor-error" class="error-msg hidden"></div>
+      </div>
+      <button class="btn small ghost hidden" id="trip-start-edit-trigger" style="margin-bottom:16px;">
+        <i data-lucide="map-pin" class="icon icon-sm"></i> Edit start pin
+      </button>
+
       <!-- Leader-only destination pin editor -- hidden entirely for non-leaders and once
            a destination is already pinned (leader still gets a small "Edit" trigger then). -->
       <div class="card hidden" id="trip-dest-editor-card" style="margin-bottom:16px;">
@@ -227,8 +245,11 @@
       </button>
 
       <div class="trip-live-map-wrap" id="trip-map-wrap">
-        <button type="button" class="btn small ghost map-fullscreen-btn" id="trip-map-fullscreen-btn">
-          <i data-lucide="maximize" class="icon icon-sm"></i> Full Screen Map
+        <button type="button" class="btn small danger map-need-stop-btn" id="trip-need-stop-btn" aria-label="Need to stop">
+          <i data-lucide="octagon-alert" class="icon icon-sm"></i> <span class="btn-label">Need to Stop</span>
+        </button>
+        <button type="button" class="btn small ghost map-fullscreen-btn" id="trip-map-fullscreen-btn" aria-label="Full screen map">
+          <i data-lucide="maximize" class="icon icon-sm"></i> <span class="btn-label">Full Screen Map</span>
         </button>
         <div id="trip-map" class="trip-live-map"></div>
         <div class="map-legend">
@@ -238,6 +259,18 @@
         </div>
         <div class="map-empty-note hidden" id="trip-map-empty-note"></div>
       </div>
+
+      <details class="card hidden" id="trip-directions-card" style="margin-bottom:16px;">
+        <summary style="cursor:pointer;">
+          <span class="section-title" style="display:inline;margin-bottom:0;">Directions</span>
+          <span class="row-sub" id="trip-directions-summary" style="margin-left:8px;"></span>
+        </summary>
+        <p class="row-sub" style="margin:10px 0;">
+          Real road-following directions, generated from the pinned start and destination points.
+          Not live turn-by-turn — it doesn't track your position or advance automatically as you ride.
+        </p>
+        <ol id="trip-directions-list" style="margin:0;padding-left:20px;"></ol>
+      </details>
 
       <div class="card">
         <div class="section-title">Live Riders</div>
