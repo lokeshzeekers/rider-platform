@@ -368,6 +368,12 @@ if (window.lucide) lucide.createIcons();
   var headingOverrides = { requests: 'Friend Requests', history: 'Trip History', map: 'Live Map' };
   var origShowSection = window.showSection;
   window.showSection = function (name) {
+    // Leaving the dedicated trip view via ANYTHING other than its own "Back to Trips"
+    // button (bottom nav, sidebar, the More sheet) must still tear down its state --
+    // otherwise the hidden topbar and/or a stuck full-screen map never get restored.
+    if (name !== 'trip-live' && typeof leaveTripView === 'function') {
+      leaveTripView();
+    }
     origShowSection(name);
     if (headingOverrides[name]) {
       document.getElementById('section-heading').textContent = headingOverrides[name];

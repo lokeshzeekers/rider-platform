@@ -220,7 +220,15 @@ async function openTripDetail(tripId) {
   }
 }
 
-function closeTripDetail() {
+// Tears down all dedicated-trip-view state: map, fullscreen mode, hidden topbar, and the
+// #trip/<id> URL hash. closeTripDetail() (the "Back to Trips" button) is ONE way to
+// trigger this, but it must also happen if the user leaves the trip view any other way
+// (bottom nav, sidebar, the mobile "More" sheet) -- see the showSection() wrapper in
+// dashboard.html, which calls this whenever navigating to anything other than
+// 'trip-live'. Without it, leaving mid-trip (especially while full screen map is active)
+// left body.map-fullscreen-open stuck on, which blocked all further page scrolling.
+function leaveTripView() {
+  if (currentTripId === null && !document.body.classList.contains('map-fullscreen-open')) return;
   currentTripId = null;
   currentTripMembers = [];
   currentTrip = null;
@@ -231,11 +239,19 @@ function closeTripDetail() {
   tripDestMarker = null;
   tripRouteLine = null;
   exitMapFullscreen();
-  document.getElementById('trip-dest-editor-card').classList.add('hidden');
-  document.getElementById('trip-dest-edit-trigger').classList.add('hidden');
+  const destCard = document.getElementById('trip-dest-editor-card');
+  const destTrigger = document.getElementById('trip-dest-edit-trigger');
+  if (destCard) destCard.classList.add('hidden');
+  if (destTrigger) destTrigger.classList.add('hidden');
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.classList.remove('hidden');
-  history.replaceState(null, '', location.pathname + location.search);
+  if (location.hash.startsWith('#trip/')) {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+}
+
+function closeTripDetail() {
+  leaveTripView();
   showSection('trips');
   loadTrips();
 }
