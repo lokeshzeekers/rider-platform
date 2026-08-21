@@ -429,48 +429,40 @@ body.map-fullscreen-open { overflow: hidden; }
 @media (max-width: 899px) {
   #trip-map.trip-live-map { height: 58vh; min-height: 300px; }
 }
-.map-fullscreen-btn {
+/* All custom map controls live in a single vertical stack on the right, so Leaflet's own
+   zoom control (which the library places at top-left by default) is never covered --
+   an earlier version put "Need to Stop" at top-left directly on top of it. Vertical
+   stacking also means these buttons can never collide with each other horizontally,
+   at any screen width, without needing width-based icon-collapse hacks. */
+.trip-map-controls {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 6;
-  background: var(--panel) !important;
-  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
 }
-.map-need-stop-btn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 6;
-  box-shadow: var(--shadow-sm);
-}
-.trip-live-map-wrap.map-fullscreen .map-need-stop-btn {
-  top: calc(10px + env(safe-area-inset-top, 0));
-  left: calc(10px + env(safe-area-inset-left, 0));
-}
-/* Collapse both top map buttons to icon-only below ~420px so they can never overlap
-   each other in the narrow strip above the map (Need to Stop stays left, Full Screen
-   Map stays right, at every width down to 320px). */
-@media (max-width: 420px) {
-  .map-need-stop-btn .btn-label,
-  .map-fullscreen-btn .btn-label {
-    display: none;
-  }
-  .map-need-stop-btn,
-  .map-fullscreen-btn {
-    padding-left: 9px;
-    padding-right: 9px;
-  }
-}
-.trip-live-map-wrap.map-fullscreen .map-fullscreen-btn {
+.trip-live-map-wrap.map-fullscreen .trip-map-controls {
   top: calc(10px + env(safe-area-inset-top, 0));
   right: calc(10px + env(safe-area-inset-right, 0));
 }
+.trip-map-controls .btn {
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.map-fullscreen-btn, .map-locate-btn { background: var(--panel) !important; }
+.map-locate-btn.following {
+  background: var(--blue) !important;
+  color: #fff !important;
+  border-color: var(--blue) !important;
+}
 .map-empty-note {
   position: absolute;
-  top: 54px;
+  top: 10px;
   left: 10px;
-  right: 10px;
+  right: 160px;
   z-index: 5;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -480,6 +472,26 @@ body.map-fullscreen-open { overflow: hidden; }
   color: var(--text-dim);
   box-shadow: var(--shadow-sm);
 }
+@media (max-width: 560px) {
+  /* Below this width the 3-button stack plus its labels would crowd a right-side note,
+     so the note drops below the stack instead of squeezing beside it. */
+  .map-empty-note { top: 150px; right: 10px; }
+}
+.trip-my-location-readout {
+  position: absolute;
+  bottom: 54px;
+  left: 10px;
+  z-index: 5;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  box-shadow: var(--shadow-sm);
+  max-width: calc(100% - 20px);
+}
+.trip-my-location-readout .mono { color: var(--text); font-weight: 600; }
 .map-legend {
   position: absolute;
   bottom: 10px;

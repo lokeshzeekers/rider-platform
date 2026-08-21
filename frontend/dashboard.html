@@ -245,13 +245,19 @@
       </button>
 
       <div class="trip-live-map-wrap" id="trip-map-wrap">
-        <button type="button" class="btn small danger map-need-stop-btn" id="trip-need-stop-btn" aria-label="Need to stop">
-          <i data-lucide="octagon-alert" class="icon icon-sm"></i> <span class="btn-label">Need to Stop</span>
-        </button>
-        <button type="button" class="btn small ghost map-fullscreen-btn" id="trip-map-fullscreen-btn" aria-label="Full screen map">
-          <i data-lucide="maximize" class="icon icon-sm"></i> <span class="btn-label">Full Screen Map</span>
-        </button>
+        <div class="trip-map-controls">
+          <button type="button" class="btn small ghost map-fullscreen-btn" id="trip-map-fullscreen-btn" aria-label="Full screen map">
+            <i data-lucide="maximize" class="icon icon-sm"></i> <span class="btn-label">Full Screen Map</span>
+          </button>
+          <button type="button" class="btn small ghost map-locate-btn" id="trip-locate-btn" aria-label="Recenter to my location">
+            <i data-lucide="locate-fixed" class="icon icon-sm"></i> <span class="btn-label">Recenter to Me</span>
+          </button>
+          <button type="button" class="btn small danger map-need-stop-btn" id="trip-need-stop-btn" aria-label="Need to stop">
+            <i data-lucide="octagon-alert" class="icon icon-sm"></i> <span class="btn-label">Need to Stop</span>
+          </button>
+        </div>
         <div id="trip-map" class="trip-live-map"></div>
+        <div class="trip-my-location-readout hidden" id="trip-my-location-readout"></div>
         <div class="map-legend">
           <span><i class="legend-dot start"></i> Start</span>
           <span><i class="legend-dot dest"></i> Destination</span>

@@ -10,6 +10,9 @@ let tripDestMarker = null;
 let tripRouteLine = null;
 let tripLocationsById = {};
 let tripLocationInterval = null;
+let tripGeoWatchId = null;
+let mapFollowMe = false;
+let suppressFollowCancel = false;
 
 async function populateInviteeSelect(selectEl) {
   try {
@@ -444,11 +447,24 @@ function initTripMap(tripId, trip) {
   tripRouteLine = null;
   tripLocationsById = {};
   renderDirections(null);
+  setMapFollowMe(false);
+  document.getElementById('trip-my-location-readout').classList.add('hidden');
   tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
   }).addTo(tripMap);
+  // Manually panning/zooming means the rider wants to look elsewhere -- stop
+  // auto-recentering on them until they tap "Recenter to Me" again. dragstart only fires
+  // for real user drag (never programmatic pan), so it's always safe to listen to
+  // directly. zoomstart fires for BOTH user zoom AND our own programmatic setView calls
+  // (e.g. the recenter button's own zoom-in) -- suppressFollowCancel guards specifically
+  // against that self-triggered case so enabling follow mode can't immediately cancel
+  // itself.
+  tripMap.on('dragstart', () => setMapFollowMe(false));
+  tripMap.on('zoomstart', () => {
+    if (!suppressFollowCancel) setMapFollowMe(false);
+  });
 
   Api.get(`/trips/${tripId}/locations`)
     .then(async (data) => {
@@ -743,7 +759,60 @@ function renderTripMapMarkers() {
     const dist = distanceFromMeKm(uid);
     upsertMarker(tripMap, tripMarkers, uid, loc.lat, loc.lng, riderPopupHtml(member, isLive, dist), '#2563eb');
   });
+  updateMyLocationReadout();
+  if (mapFollowMe && tripLocationsById[ME.id]) {
+    const mine = tripLocationsById[ME.id];
+    tripMap.panTo([mine.lat, mine.lng], { animate: true });
+  }
 }
+
+// ===== Recenter to me / Follow me =====
+// Shows exactly where the rider's own live coordinates are (proves updates are really
+// arriving), and a button to jump the map back to them instead of hunting by hand.
+function updateMyLocationReadout() {
+  const el = document.getElementById('trip-my-location-readout');
+  if (!el) return;
+  const mine = tripLocationsById[ME.id];
+  if (!mine) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.innerHTML = `You: <span class="mono">${mine.lat.toFixed(5)}, ${mine.lng.toFixed(5)}</span> \u00B7 updated ${timeAgo(mine.updated_at)}`;
+  el.classList.remove('hidden');
+}
+
+function setMapFollowMe(on) {
+  mapFollowMe = on;
+  const btn = document.getElementById('trip-locate-btn');
+  if (btn) btn.classList.toggle('following', on);
+}
+
+document.getElementById('trip-locate-btn').addEventListener('click', () => {
+  const mine = tripLocationsById[ME.id];
+  if (mine && tripMap) {
+    setMapFollowMe(true);
+    suppressFollowCancel = true;
+    tripMap.setView([mine.lat, mine.lng], Math.max(tripMap.getZoom(), 15), { animate: true });
+    setTimeout(() => {
+      suppressFollowCancel = false;
+    }, 500);
+    return;
+  }
+  // Not sharing yet on this trip -- a one-off position read to recenter, without
+  // committing to continuous sharing (that's a separate, explicit action).
+  if (!navigator.geolocation) {
+    alert('Your browser does not support geolocation.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (!tripMap) return;
+      tripMap.setView([pos.coords.latitude, pos.coords.longitude], 15, { animate: true });
+    },
+    () => alert('Could not get your current location. Share your location on this trip to be tracked live.'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
 
 function renderRiderList(members) {
   const listEl = document.getElementById('trip-members-list');
@@ -788,12 +857,16 @@ document.getElementById('trip-members-list').addEventListener('click', (e) => {
 
 function startTripLocationSharing(tripId) {
   if (tripLocationInterval) clearInterval(tripLocationInterval);
+  if (tripGeoWatchId !== null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(tripGeoWatchId);
+    tripGeoWatchId = null;
+  }
   const sendPos = (lat, lng) => {
     socket.emit('trip:location:update', { trip_id: tripId, lat, lng });
     Api.post(`/trips/${tripId}/location`, { lat, lng }).catch(() => {});
   };
   if (navigator.geolocation) {
-    navigator.geolocation.watchPosition(
+    tripGeoWatchId = navigator.geolocation.watchPosition(
       (pos) => sendPos(pos.coords.latitude, pos.coords.longitude),
       () => simulateTripLocation(sendPos),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
