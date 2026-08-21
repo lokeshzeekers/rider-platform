@@ -246,6 +246,9 @@
 
       <div class="trip-live-map-wrap" id="trip-map-wrap">
         <div class="trip-map-controls">
+          <button type="button" class="btn small primary map-nav-btn" id="trip-nav-toggle-btn" aria-label="Start navigation">
+            <i data-lucide="navigation-2" class="icon icon-sm"></i> <span class="btn-label">Start Navigation</span>
+          </button>
           <button type="button" class="btn small ghost map-fullscreen-btn" id="trip-map-fullscreen-btn" aria-label="Full screen map">
             <i data-lucide="maximize" class="icon icon-sm"></i> <span class="btn-label">Full Screen Map</span>
           </button>
@@ -257,6 +260,7 @@
           </button>
         </div>
         <div id="trip-map" class="trip-live-map"></div>
+        <div class="trip-nav-banner hidden" id="trip-nav-banner"></div>
         <div class="trip-my-location-readout hidden" id="trip-my-location-readout"></div>
         <div class="map-legend">
           <span><i class="legend-dot start"></i> Start</span>

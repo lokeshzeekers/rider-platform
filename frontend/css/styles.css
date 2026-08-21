@@ -458,6 +458,33 @@ body.map-fullscreen-open { overflow: hidden; }
   color: #fff !important;
   border-color: var(--blue) !important;
 }
+.trip-nav-banner {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 160px;
+  z-index: 7;
+  background: var(--blue);
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.trip-nav-banner .nav-banner-dist {
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.22);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
 .map-empty-note {
   position: absolute;
   top: 10px;
@@ -473,9 +500,10 @@ body.map-fullscreen-open { overflow: hidden; }
   box-shadow: var(--shadow-sm);
 }
 @media (max-width: 560px) {
-  /* Below this width the 3-button stack plus its labels would crowd a right-side note,
-     so the note drops below the stack instead of squeezing beside it. */
-  .map-empty-note { top: 150px; right: 10px; }
+  /* Below this width the button stack (now 4 buttons: Start Navigation, Full Screen,
+     Recenter, Need to Stop) plus its labels would crowd a right-side note/banner, so
+     both drop below the stack instead of squeezing beside it. */
+  .map-empty-note, .trip-nav-banner { top: 190px; right: 10px; }
 }
 .trip-my-location-readout {
   position: absolute;

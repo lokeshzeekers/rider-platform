@@ -99,11 +99,12 @@ function riderIcon(color) {
     iconAnchor: [8, 8]
   });
 }
-function upsertMarker(map, store, key, lat, lng, label, color) {
+function upsertMarker(map, store, key, lat, lng, label, color, customIcon) {
   if (store[key]) {
     store[key].setLatLng([lat, lng]);
+    if (customIcon) store[key].setIcon(customIcon);
   } else {
-    store[key] = L.marker([lat, lng], { icon: riderIcon(color) }).addTo(map).bindPopup(label);
+    store[key] = L.marker([lat, lng], { icon: customIcon || riderIcon(color) }).addTo(map).bindPopup(label);
   }
   store[key].setPopupContent(label);
 }

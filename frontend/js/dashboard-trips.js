@@ -13,6 +13,9 @@ let tripLocationInterval = null;
 let tripGeoWatchId = null;
 let mapFollowMe = false;
 let suppressFollowCancel = false;
+let navMode = false;
+let tripRouteSteps = [];
+let navCurrentStepIndex = 0;
 
 async function populateInviteeSelect(selectEl) {
   try {
@@ -275,6 +278,10 @@ function leaveTripView() {
   }
   tripDestMarker = null;
   tripRouteLine = null;
+  navMode = false;
+  tripRouteSteps = [];
+  const navBanner = document.getElementById('trip-nav-banner');
+  if (navBanner) navBanner.classList.add('hidden');
   exitMapFullscreen();
   const destCard = document.getElementById('trip-dest-editor-card');
   const destTrigger = document.getElementById('trip-dest-edit-trigger');
@@ -419,6 +426,8 @@ function renderDirections(routeResult) {
   const card = document.getElementById('trip-directions-card');
   const list = document.getElementById('trip-directions-list');
   const summary = document.getElementById('trip-directions-summary');
+  tripRouteSteps = routeResult && routeResult.steps ? routeResult.steps : [];
+  navCurrentStepIndex = 0;
   if (!card || !list || !summary) return;
   if (!routeResult || !routeResult.steps || routeResult.steps.length === 0) {
     card.classList.add('hidden');
@@ -435,6 +444,67 @@ function renderDirections(routeResult) {
   card.classList.remove('hidden');
 }
 
+// ===== Focused navigation mode: your route, your marker only =====
+// "Start Navigation" hides every other rider's marker (start/destination/route stay),
+// turns on follow-me, and shows a live banner tracking your progress through the real
+// OSRM steps by proximity -- this is a lightweight, distance-to-next-maneuver estimate,
+// not true map-matched road-snapped navigation, so treat the "arrived" trigger distance
+// as approximate rather than precise.
+function setNavMode(on) {
+  navMode = on;
+  navCurrentStepIndex = 0;
+  const btn = document.getElementById('trip-nav-toggle-btn');
+  if (btn) {
+    btn.innerHTML = on
+      ? '<i data-lucide="x" class="icon icon-sm"></i> <span class="btn-label">Exit Navigation</span>'
+      : '<i data-lucide="navigation-2" class="icon icon-sm"></i> <span class="btn-label">Start Navigation</span>';
+    btn.classList.toggle('primary', !on);
+    btn.classList.toggle('ghost', on);
+  }
+  if (window.lucide) lucide.createIcons();
+  if (on && tripMap && tripLocationsById[ME.id]) {
+    setMapFollowMe(true);
+    suppressFollowCancel = true;
+    tripMap.setView([tripLocationsById[ME.id].lat, tripLocationsById[ME.id].lng], 16, { animate: true });
+    setTimeout(() => {
+      suppressFollowCancel = false;
+    }, 500);
+  }
+  renderTripMapMarkers();
+}
+document.getElementById('trip-nav-toggle-btn').addEventListener('click', () => setNavMode(!navMode));
+
+function updateNavigationBanner() {
+  const banner = document.getElementById('trip-nav-banner');
+  if (!banner) return;
+  const mine = tripLocationsById[ME.id];
+  if (!navMode || tripRouteSteps.length === 0 || !mine) {
+    banner.classList.add('hidden');
+    return;
+  }
+  // Advance to the next step once we're close enough to the current one's maneuver
+  // point -- proximity-based, never moves backward.
+  while (navCurrentStepIndex < tripRouteSteps.length - 1) {
+    const loc = tripRouteSteps[navCurrentStepIndex].maneuver && tripRouteSteps[navCurrentStepIndex].maneuver.location;
+    if (!loc) break;
+    const meters = haversineKmClient(mine.lat, mine.lng, loc[1], loc[0]) * 1000;
+    if (meters < 40) {
+      navCurrentStepIndex++;
+    } else {
+      break;
+    }
+  }
+  const step = tripRouteSteps[navCurrentStepIndex];
+  const loc = step.maneuver && step.maneuver.location;
+  let distText = '';
+  if (loc) {
+    const meters = haversineKmClient(mine.lat, mine.lng, loc[1], loc[0]) * 1000;
+    distText = meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+  }
+  banner.innerHTML = `<span>${escapeHtml(maneuverText(step))}</span>${distText ? `<span class="nav-banner-dist">${distText}</span>` : ''}`;
+  banner.classList.remove('hidden');
+}
+
 function initTripMap(tripId, trip) {
   const el = document.getElementById('trip-map');
   el.innerHTML = '';
@@ -448,6 +518,7 @@ function initTripMap(tripId, trip) {
   tripLocationsById = {};
   renderDirections(null);
   setMapFollowMe(false);
+  setNavMode(false);
   document.getElementById('trip-my-location-readout').classList.add('hidden');
   tripMap = L.map('trip-map').setView([20.5937, 78.9629], 5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -713,6 +784,24 @@ function destIcon() {
   });
 }
 
+// Your own rider marker uses your real profile photo (falls back to your initials on a
+// plain colored circle if you don't have one set, or if the image fails to load) --
+// distinguishes "you" from other riders' plain colored dots at a glance.
+function avatarMarkerIcon(user) {
+  const path = user.profile_pic_url ? user.profile_pic_url.replace('/api', '') : null;
+  const src = path ? `${window.APP_CONFIG.API_BASE}${path}?token=${encodeURIComponent(Api.accessToken())}` : null;
+  const fallback = `<div style="width:100%;height:100%;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:'Poppins',sans-serif;">${escapeHtml(initials(user.name))}</div>`;
+  const inner = src
+    ? `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />${fallback.replace('style="width', 'style="display:none;width')}`
+    : fallback;
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:38px;height:38px;border-radius:50%;border:3px solid #2563eb;box-shadow:0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,.35);overflow:hidden;background:#fff;">${inner}</div>`,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19]
+  });
+}
+
 function haversineKmClient(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -752,14 +841,25 @@ function renderTripMapMarkers() {
   const memberById = {};
   currentTripMembers.forEach((m) => (memberById[m.id] = m));
   Object.keys(tripLocationsById).forEach((uid) => {
+    if (navMode && uid !== ME.id) {
+      // Focused navigation mode: hide every other rider's marker (start/destination/
+      // route stay visible) so the map shows only your own route.
+      if (tripMarkers[uid]) {
+        tripMap.removeLayer(tripMarkers[uid]);
+        delete tripMarkers[uid];
+      }
+      return;
+    }
     const loc = tripLocationsById[uid];
     const member = memberById[uid];
     if (!member) return;
     const isLive = !!member.is_sharing_location;
     const dist = distanceFromMeKm(uid);
-    upsertMarker(tripMap, tripMarkers, uid, loc.lat, loc.lng, riderPopupHtml(member, isLive, dist), '#2563eb');
+    const icon = uid === ME.id ? avatarMarkerIcon(ME) : undefined;
+    upsertMarker(tripMap, tripMarkers, uid, loc.lat, loc.lng, riderPopupHtml(member, isLive, dist), '#2563eb', icon);
   });
   updateMyLocationReadout();
+  updateNavigationBanner();
   if (mapFollowMe && tripLocationsById[ME.id]) {
     const mine = tripLocationsById[ME.id];
     tripMap.panTo([mine.lat, mine.lng], { animate: true });
@@ -792,6 +892,11 @@ document.getElementById('trip-locate-btn').addEventListener('click', () => {
   if (mine && tripMap) {
     setMapFollowMe(true);
     suppressFollowCancel = true;
+    // Force a re-measure first: if the map container's on-screen size changed since
+    // Leaflet last checked (e.g. right after switching into this view, or toggling full
+    // screen), setView's centering math can be based on a stale size and appear to do
+    // nothing.
+    tripMap.invalidateSize();
     tripMap.setView([mine.lat, mine.lng], Math.max(tripMap.getZoom(), 15), { animate: true });
     setTimeout(() => {
       suppressFollowCancel = false;
