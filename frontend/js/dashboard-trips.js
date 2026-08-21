@@ -444,12 +444,13 @@ function renderDirections(routeResult) {
   card.classList.remove('hidden');
 }
 
-// ===== Focused navigation mode: your route, your marker only =====
-// "Start Navigation" hides every other rider's marker (start/destination/route stay),
-// turns on follow-me, and shows a live banner tracking your progress through the real
-// OSRM steps by proximity -- this is a lightweight, distance-to-next-maneuver estimate,
-// not true map-matched road-snapped navigation, so treat the "arrived" trigger distance
-// as approximate rather than precise.
+// ===== Focused navigation mode: emphasizes YOUR route/turns, but still shows everyone =====
+// "Start Navigation" turns on follow-me (the map keeps panning to you as you move) and
+// shows a live banner tracking your progress through the real OSRM steps by proximity --
+// other riders stay visible the whole time (crossing paths with them is exactly when you
+// want to see them, not lose them). The banner is a lightweight, distance-to-next-
+// maneuver estimate, not true map-matched road-snapped navigation, so treat the
+// "arrived" trigger distance as approximate rather than precise.
 function setNavMode(on) {
   navMode = on;
   navCurrentStepIndex = 0;
@@ -841,15 +842,6 @@ function renderTripMapMarkers() {
   const memberById = {};
   currentTripMembers.forEach((m) => (memberById[m.id] = m));
   Object.keys(tripLocationsById).forEach((uid) => {
-    if (navMode && uid !== ME.id) {
-      // Focused navigation mode: hide every other rider's marker (start/destination/
-      // route stay visible) so the map shows only your own route.
-      if (tripMarkers[uid]) {
-        tripMap.removeLayer(tripMarkers[uid]);
-        delete tripMarkers[uid];
-      }
-      return;
-    }
     const loc = tripLocationsById[uid];
     const member = memberById[uid];
     if (!member) return;
